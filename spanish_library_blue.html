@@ -320,7 +320,7 @@ function renderSentences() {
       <div class="field-row two">
         <div class="field">
           <label>Your sentence in English</label>
-          <textarea id="s-en" rows="2" placeholder="e.g. Today is an awesome day."></textarea>
+          <textarea id="s-en" rows="2" placeholder="e.g. I can't decide where to live"></textarea>
         </div>
         <div class="field"><label>Mexico City Spanish</label><textarea id="s-es" rows="2" placeholder="Paste or auto-translate →"></textarea></div>
       </div>
@@ -646,13 +646,9 @@ async function speak(text) {
         body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
       });
       if (res.ok) {
-        const arrayBuf = await res.arrayBuffer();
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
-        const source = audioCtx.createBufferSource();
-        source.buffer = audioBuf;
-        source.connect(audioCtx.destination);
-        source.start(0);
+        const blob = await res.blob();
+        const audio = new Audio(URL.createObjectURL(blob));
+        audio.play();
         return;
       }
     } catch(e) { console.log('ElevenLabs error, falling back to browser TTS', e); }
