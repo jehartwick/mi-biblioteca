@@ -640,6 +640,9 @@ function toggleDictation() {
 async function speak(text) {
   if (settings.elevenKey && settings.voiceId) {
     try {
+      // Create and play audio immediately to satisfy Safari's gesture requirement
+      const audio = new Audio();
+      audio.play().catch(()=>{});
       const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + settings.voiceId, {
         method: 'POST',
         headers: { 'xi-api-key': settings.elevenKey, 'Content-Type': 'application/json' },
@@ -647,7 +650,8 @@ async function speak(text) {
       });
       if (res.ok) {
         const blob = await res.blob();
-        const audio = new Audio(URL.createObjectURL(blob));
+        audio.src = URL.createObjectURL(blob);
+        audio.load();
         audio.play();
         return;
       }
