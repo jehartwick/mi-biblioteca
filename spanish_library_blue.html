@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mi Biblioteca</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d2a4a; --bg2: #163d6b; --bg3: #1e4f8a;
+  --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.13);
+  --text: #ffffff; --text2: #b8d4f0; --text3: #7aafd4;
+  --accent: #87CEEB; --accent2: #aaddf5;
+  --green: #4caf7d; --red: #e06b5a; --blue: #6ba3c8;
+  --r: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-weight: 300; min-height: 100vh; }
+a { color: var(--accent); text-decoration: none; }
+.app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+.sidebar { background: var(--bg2); border-right: 1px solid var(--border); padding: 24px 16px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.main { padding: 40px 44px; max-width: 900px; }
+.logo { font-family: 'Playfair Display', serif; font-size: 19px; color: var(--accent); margin-bottom: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--border); padding-left: 8px; }
+.logo em { font-style: italic; }
+.nav-section { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); margin: 14px 0 4px 8px; font-weight: 500; }
+.nav-btn { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--text2); transition: all 0.15s; border: none; background: none; width: 100%; text-align: left; font-family: 'DM Sans', sans-serif; font-weight: 400; }
+.nav-btn:hover { background: var(--bg3); color: var(--text); }
+.nav-btn.active { background: var(--bg3); color: var(--accent); }
+.nav-icon { font-size: 13px; width: 16px; text-align: center; opacity: 0.8; }
+.day-btn { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; color: var(--text3); transition: all 0.15s; border: none; background: none; width: 100%; font-family: 'DM Sans', sans-serif; }
+.day-btn:hover { background: var(--bg3); color: var(--text2); }
+.day-btn.active { color: var(--accent); background: var(--bg3); }
+.day-pill { background: var(--bg); padding: 1px 7px; border-radius: 20px; font-size: 10px; }
+.page-header { margin-bottom: 28px; }
+.page-title { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 400; }
+.page-title em { color: var(--accent); font-style: italic; }
+.page-sub { font-size: 13px; color: var(--text2); margin-top: 5px; }
+.stats { display: flex; gap: 10px; margin-bottom: 28px; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 14px 18px; flex: 1; }
+.stat-n { font-family: 'Playfair Display', serif; font-size: 26px; color: var(--accent); line-height: 1; }
+.stat-l { font-size: 11px; color: var(--text3); margin-top: 3px; }
+.add-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; margin-bottom: 28px; }
+.add-panel h3 { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); margin-bottom: 14px; font-weight: 500; }
+.field-row { display: grid; gap: 10px; margin-bottom: 10px; }
+.field-row.two { grid-template-columns: 1fr 1fr; }
+.field-row.three { grid-template-columns: 1fr 1fr 1fr; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: 11px; color: var(--text2); letter-spacing: 0.04em; }
+.field input, .field textarea, .field select { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 300; outline: none; transition: border 0.15s; resize: none; }
+.field input:focus, .field textarea:focus, .field select:focus { border-color: var(--accent); }
+.field input::placeholder, .field textarea::placeholder { color: var(--text3); }
+.field select option { background: var(--bg3); }
+.add-actions { display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+.btn { border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; border: none; }
+.btn-gold { background: var(--accent); color: #0d2a4a; }
+.btn-gold:hover { background: var(--accent2); }
+.btn-gold:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-ghost { background: none; color: var(--text2); border: 1px solid var(--border2); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.day-group { margin-bottom: 32px; }
+.day-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.day-heading h2 { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 400; color: var(--text2); white-space: nowrap; }
+.day-line { flex: 1; height: 1px; background: var(--border); }
+.s-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 16px 18px; margin-bottom: 8px; display: grid; grid-template-columns: 1fr 1fr auto; gap: 16px; align-items: start; transition: border 0.15s, opacity 0.15s; }
+.s-card:hover { border-color: var(--border2); }
+.s-card.mastered { opacity: 0.38; }
+.lang-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); margin-bottom: 4px; }
+.en-text { font-size: 14px; color: var(--text2); line-height: 1.5; }
+.es-text { font-size: 15px; color: var(--accent2); font-weight: 500; line-height: 1.5; }
+.card-actions { display: flex; flex-direction: column; gap: 5px; align-items: center; padding-top: 2px; }
+.icon-btn { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 15px; padding: 3px 5px; border-radius: 4px; transition: color 0.15s; line-height: 1; }
+.icon-btn:hover { color: var(--text); }
+.icon-btn.on { color: var(--green); }
+.icon-btn.del:hover { color: var(--red); }
+.w-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 14px 18px; margin-bottom: 8px; display: grid; grid-template-columns: auto 1fr auto auto; gap: 14px; align-items: start; }
+.w-card.used { opacity: 0.38; }
+.w-es { font-size: 16px; color: var(--accent2); font-weight: 500; min-width: 140px; }
+.w-en { font-size: 13px; color: var(--text2); margin-top: 3px; }
+.w-note { font-size: 12px; color: var(--text3); margin-top: 4px; }
+.w-actions { display: flex; gap: 4px; align-items: flex-start; padding-top: 2px; }
+.used-badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; background: var(--bg3); color: var(--green); border: 1px solid rgba(76,175,125,0.3); white-space: nowrap; margin-top: 4px; }
+.c-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 16px 18px; margin-bottom: 8px; }
+.c-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.c-title { font-size: 15px; font-weight: 500; color: var(--text); }
+.c-tag { font-size: 10px; padding: 2px 9px; border-radius: 20px; border: 1px solid var(--border2); color: var(--text3); display: inline-block; margin-top: 3px; }
+.c-tag.slang { border-color: rgba(200,169,110,0.4); color: var(--accent); }
+.c-tag.history { border-color: rgba(107,163,200,0.4); color: var(--blue); }
+.c-body { font-size: 13px; color: var(--text2); margin-top: 8px; line-height: 1.6; }
+.drill-wrap { max-width: 540px; }
+.drill-top { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+.seg { display: flex; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg-opt { padding: 7px 14px; font-size: 12px; cursor: pointer; color: var(--text2); border: none; background: none; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+.seg-opt.active { background: var(--bg3); color: var(--accent); }
+.drill-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 44px 36px; text-align: center; min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; margin-bottom: 16px; }
+.drill-plabel { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); }
+.drill-prompt { font-size: 24px; line-height: 1.4; max-width: 380px; }
+.drill-prompt.es { color: var(--accent2); font-weight: 500; }
+.drill-answer { font-size: 14px; color: var(--text2); padding-top: 16px; border-top: 1px solid var(--border); width: 100%; display: none; }
+.drill-answer.show { display: block; }
+.drill-btns { display: flex; gap: 10px; justify-content: center; }
+.drill-prog { font-size: 12px; color: var(--text3); text-align: center; margin-bottom: 16px; }
+.drill-prog b { color: var(--accent); font-weight: 500; }
+.empty { padding: 48px 0; text-align: center; color: var(--text3); font-size: 14px; }
+.settings-wrap { max-width: 560px; }
+.settings-section { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 24px; margin-bottom: 16px; }
+.settings-section h3 { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+.settings-section p { font-size: 13px; color: var(--text2); margin-bottom: 16px; line-height: 1.6; }
+.setup-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 40px; }
+.setup-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 48px; max-width: 480px; width: 100%; text-align: center; }
+.setup-logo { font-family: 'Playfair Display', serif; font-size: 36px; color: var(--accent); margin-bottom: 8px; }
+.setup-logo em { font-style: italic; }
+.setup-sub { font-size: 14px; color: var(--text2); margin-bottom: 32px; line-height: 1.6; }
+.setup-fields { text-align: left; display: flex; flex-direction: column; gap: 14px; margin-bottom: 24px; }
+.setup-note { font-size: 11px; color: var(--text3); margin-top: 16px; line-height: 1.6; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+.pulsing { animation: pulse 1s infinite; color: var(--accent); font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="app-root"></div>
+<script>
+const SETTINGS_KEY = 'mibiblioteca_settings';
+const CACHE_KEY = 'mibiblioteca_cache_v2';
+let settings = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch(e) { return {}; } })();
+let cache = (() => { try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || {sentences:[],words:[],culture:[],lastSync:null}; } catch(e) { return {sentences:[],words:[],culture:[],lastSync:null}; } })();
+let view = 'sentences', dayFilter = null;
+let drillIdx = 0, drillDir = 'en-es', drillRevealed = false, drillQueue = [];
+
+function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+function saveCache() { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); }
+function isConfigured() { return !!(settings.token && settings.dbId); }
+
+// NOTION API
+const PROXY = 'https://notion-proxy.jehartwick.workers.dev';
+async function notionReq(path, method='GET', body=null) {
+  const opts = { method, headers: { 'Authorization': 'Bearer ' + settings.token, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(PROXY + path, opts);
+  if (!res.ok) { const e = await res.json(); throw new Error(e.message || 'Notion API error'); }
+  return res.json();
+}
+
+async function notionQuery() {
+  const data = await notionReq('/databases/' + settings.dbId + '/query', 'POST', { page_size: 100 });
+  return data.results || [];
+}
+
+function getProp(page, name, type) {
+  const p = page.properties[name];
+  if (!p) return type === 'checkbox' ? false : '';
+  if (type === 'title') return (p.title || []).map(t => t.plain_text).join('');
+  if (type === 'rich_text') return (p.rich_text || []).map(t => t.plain_text).join('');
+  if (type === 'checkbox') return !!p.checkbox;
+  if (type === 'select') return p.select ? p.select.name : '';
+  return '';
+}
+
+function makeProps(obj) {
+  const p = {};
+  if (obj.english !== undefined) p['english'] = { title: [{ text: { content: String(obj.english) } }] };
+  if (obj.spanish !== undefined) p['spanish'] = { rich_text: [{ text: { content: String(obj.spanish || '') } }] };
+  if (obj.notes !== undefined) p['notes'] = { rich_text: [{ text: { content: String(obj.notes || '') } }] };
+  if (obj.section !== undefined) p['section'] = { select: { name: obj.section } };
+  if (obj.tag !== undefined) p['tag'] = { select: { name: obj.tag } };
+  if (obj.mastered !== undefined) p['mastered'] = { checkbox: !!obj.mastered };
+  if (obj.used !== undefined) p['used'] = { checkbox: !!obj.used };
+  if (obj.day_key !== undefined) p['day_key'] = { rich_text: [{ text: { content: String(obj.day_key || '') } }] };
+  if (obj.day_label !== undefined) p['day_label'] = { rich_text: [{ text: { content: String(obj.day_label || '') } }] };
+  return p;
+}
+
+function pageToItem(page) {
+  return {
+    id: page.id,
+    english: getProp(page, 'english', 'title'),
+    spanish: getProp(page, 'spanish', 'rich_text'),
+    notes: getProp(page, 'notes', 'rich_text'),
+    section: getProp(page, 'section', 'select'),
+    tag: getProp(page, 'tag', 'select'),
+    mastered: getProp(page, 'mastered', 'checkbox'),
+    used: getProp(page, 'used', 'checkbox'),
+    day_key: getProp(page, 'day_key', 'rich_text'),
+    day_label: getProp(page, 'day_label', 'rich_text'),
+  };
+}
+
+async function createPage(obj) {
+  return notionReq('/pages', 'POST', { parent: { database_id: settings.dbId }, properties: makeProps(obj) });
+}
+async function updatePage(id, obj) { return notionReq('/pages/' + id, 'PATCH', { properties: makeProps(obj) }); }
+async function archivePage(id) { return notionReq('/pages/' + id, 'PATCH', { archived: true }); }
+
+async function syncFromNotion() {
+  const pages = await notionQuery();
+  const items = pages.map(pageToItem);
+  cache.sentences = items.filter(i => i.section === 'sentence');
+  cache.words = items.filter(i => i.section === 'word');
+  cache.culture = items.filter(i => i.section === 'culture');
+  cache.lastSync = Date.now();
+  saveCache();
+}
+
+// INIT
+function init() {
+  if (!isConfigured()) renderSetup();
+  else { renderApp(); loadData(); }
+}
+
+async function loadData() {
+  setSyncStatus('Syncing...');
+  try { await syncFromNotion(); setSyncStatus(''); render(); }
+  catch(e) { setSyncStatus('Sync error'); }
+}
+
+function setSyncStatus(msg) {
+  const el = document.getElementById('sync-status');
+  if (el) el.innerHTML = msg ? `<span class="pulsing">${msg}</span>` : '';
+}
+
+// SETUP
+function renderSetup() {
+  document.getElementById('app-root').innerHTML = `
+    <div class="setup-screen">
+      <div class="setup-card">
+        <div class="setup-logo"><em>Mi</em> Biblioteca</div>
+        <p class="setup-sub">Your personal Mexico City Spanish learning library.<br>Connect your Notion database to get started.</p>
+        <div class="setup-fields">
+          <div class="field"><label>Notion API Token</label><input type="password" id="setup-token" placeholder="secret_..."></div>
+          <div class="field"><label>Database ID</label><input id="setup-dbid" placeholder="32 character ID from your Notion URL"></div>
+        </div>
+        <button class="btn btn-gold" style="width:100%;padding:12px" onclick="connectNotion()">Connect to Notion</button>
+        <div id="setup-status" style="margin-top:14px;font-size:13px;min-height:20px;text-align:center"></div>
+        <p class="setup-note">Your credentials are stored only in your browser and sent directly to Notion — never anywhere else.</p>
+      </div>
+    </div>`;
+}
+
+async function connectNotion() {
+  const token = document.getElementById('setup-token').value.trim();
+  const dbId = document.getElementById('setup-dbid').value.trim();
+  if (!token || !dbId) { document.getElementById('setup-status').innerHTML = '<span style="color:var(--red)">Both fields required</span>'; return; }
+  settings.token = token; settings.dbId = dbId; saveSettings();
+  document.getElementById('setup-status').innerHTML = '<span class="pulsing">Connecting to Notion...</span>';
+  try { await syncFromNotion(); renderApp(); render(); }
+  catch(e) { document.getElementById('setup-status').innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`; }
+}
+
+// APP SHELL
+function renderApp() {
+  document.getElementById('app-root').innerHTML = `
+    <div class="app">
+      <aside class="sidebar">
+        <div class="logo"><em>Mi</em> Biblioteca</div>
+        <div style="padding-left:8px;min-height:18px" id="sync-status"></div>
+        <div class="nav-section">Vocabulary</div>
+        <button class="nav-btn" onclick="nav('words')" id="nb-words"><span class="nav-icon">✏️</span> Words & Phrases</button>
+        <div class="nav-section" style="margin-top:10px">Mexico City</div>
+        <button class="nav-btn" onclick="nav('culture')" id="nb-culture"><span class="nav-icon">🌮</span> Culture & Slang</button>
+        <div class="nav-section" style="margin-top:10px">Sentences</div>
+        <button class="nav-btn active" onclick="nav('sentences')" id="nb-sentences"><span class="nav-icon">📖</span> All Sentences</button>
+        <button class="nav-btn" onclick="nav('drill')" id="nb-drill"><span class="nav-icon">🎯</span> Drill</button>
+        <div id="day-nav"></div>
+        <div style="flex:1"></div>
+        <button class="nav-btn" onclick="nav('settings')" id="nb-settings" style="margin-top:8px"><span class="nav-icon">⚙️</span> Settings</button>
+      </aside>
+      <main class="main" id="main"></main>
+    </div>`;
+}
+
+function nav(v, dFilter) {
+  view = v;
+  if (dFilter !== undefined) dayFilter = dFilter;
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const nb = document.getElementById('nb-' + v);
+  if (nb) nb.classList.add('active');
+  render();
+}
+
+function render() {
+  renderSidebar();
+  if (view === 'sentences') renderSentences();
+  else if (view === 'drill') renderDrill();
+  else if (view === 'words') renderWords();
+  else if (view === 'culture') renderCulture();
+  else if (view === 'settings') renderSettingsView();
+}
+
+function renderSidebar() {
+  const days = {};
+  cache.sentences.forEach(s => { if (!days[s.day_key]) days[s.day_key] = { lbl: s.day_label, n: 0 }; days[s.day_key].n++; });
+  const sorted = Object.entries(days).sort((a, b) => b[0].localeCompare(a[0]));
+  const el = document.getElementById('day-nav');
+  if (el) el.innerHTML = sorted.map(([k, v]) =>
+    `<button class="day-btn ${dayFilter === k && view === 'sentences' ? 'active' : ''}" onclick="nav('sentences','${k}')">
+      <span>${fmtDay(k)}</span><span class="day-pill">${v.n}</span>
+    </button>`).join('');
+}
+
+// SENTENCES
+function renderSentences() {
+  const all = cache.sentences;
+  const filtered = dayFilter ? all.filter(s => s.day_key === dayFilter) : all;
+  const mastered = all.filter(s => s.mastered).length;
+  const byDay = {};
+  filtered.forEach(s => { if (!byDay[s.day_key]) byDay[s.day_key] = { lbl: s.day_label, items: [] }; byDay[s.day_key].items.push(s); });
+  const dayKeys = Object.keys(byDay).sort((a, b) => b.localeCompare(a));
+  document.getElementById('main').innerHTML = `
+    <div class="page-header">
+      <h1 class="page-title">${dayFilter ? '<em>' + fmtDay(dayFilter) + '</em>' : 'All <em>Sentences</em>'}</h1>
+      <p class="page-sub">${dayFilter ? `<a href="#" onclick="nav('sentences',null);return false">← All days</a>` : 'Your Mexico City Spanish sentence library'}</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-n">${all.length}</div><div class="stat-l">Total</div></div>
+      <div class="stat"><div class="stat-n">${all.length - mastered}</div><div class="stat-l">In rotation</div></div>
+      <div class="stat"><div class="stat-n">${mastered}</div><div class="stat-l">Mastered</div></div>
+    </div>
+    <div class="add-panel">
+      <h3>Add new sentence</h3>
+      <div class="field-row two">
+        <div class="field">
+          <label style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <span>Your sentence in English</span>
+            <button class="btn btn-ghost btn-sm" id="mic-btn" onclick="toggleDictation()">🎙 Dictate</button>
+          </label>
+          <textarea id="s-en" rows="2" placeholder="e.g. I can't decide where to live"></textarea>
+        </div>
+        <div class="field"><label>Mexico City Spanish</label><textarea id="s-es" rows="2" placeholder="Paste or auto-translate →"></textarea></div>
+      </div>
+      <div class="add-actions">
+        <button class="btn btn-gold" id="save-s-btn" onclick="addSentence()">Save sentence</button>
+        <button class="btn btn-ghost" id="translate-btn" onclick="autoTranslate()">✨ Auto-translate</button>
+        <span id="s-status"></span>
+      </div>
+    </div>
+    ${dayKeys.length === 0 ? `<div class="empty">No sentences yet — add your first one above.</div>` : ''}
+    ${dayKeys.map(dk => `
+      <div class="day-group">
+        <div class="day-heading"><h2>${byDay[dk].lbl}</h2><div class="day-line"></div></div>
+        ${byDay[dk].items.map(s => sentenceCard(s)).join('')}
+      </div>`).join('')}`;
+}
+
+function sentenceCard(s) {
+  return `<div class="s-card ${s.mastered ? 'mastered' : ''}">
+    <div><div class="lang-label">English</div><div class="en-text">${esc(s.english)}</div></div>
+    <div><div class="lang-label">Español</div><div class="es-text">${esc(s.spanish)}</div></div>
+    <div class="card-actions">
+      <button class="icon-btn" onclick="speak('${esc(s.spanish)}')">🔊</button>
+      <button class="icon-btn ${s.mastered ? 'on' : ''}" onclick="toggleMastered('${s.id}',${s.mastered})">✓</button>
+      <button class="icon-btn del" onclick="deleteItem('${s.id}','sentence')">✕</button>
+    </div>
+  </div>`;
+}
+
+async function addSentence() {
+  const en = document.getElementById('s-en').value.trim();
+  const es = document.getElementById('s-es').value.trim();
+  if (!en || !es) { setStatus('s-status', 'Enter both fields', 'var(--red)'); return; }
+  const btn = document.getElementById('save-s-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const page = await createPage({ english: en, spanish: es, section: 'sentence', mastered: false, day_key: todayKey(), day_label: todayLabel() });
+    cache.sentences.unshift(pageToItem(page));
+    saveCache(); dayFilter = null; render(); showToast('Saved!');
+  } catch(e) { setStatus('s-status', 'Error: ' + e.message, 'var(--red)'); }
+  btn.disabled = false; btn.textContent = 'Save sentence';
+}
+
+async function autoTranslate() {
+  const en = document.getElementById('s-en').value.trim();
+  if (!en) { setStatus('s-status', 'Enter English first', 'var(--red)'); return; }
+  const btn = document.getElementById('translate-btn');
+  btn.disabled = true; setStatus('s-status', 'Translating...', 'var(--accent)');
+  try {
+    const res = await fetch(PROXY + '/anthropic/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': settings.anthropicKey || '', 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514', max_tokens: 200,
+        messages: [{ role: 'user', content: `Translate this to natural Mexico City Spanish as spoken by an educated, upper-middle-class Chilango — articulate and fluid, the kind of Spanish you'd hear in a dinner conversation in Condesa or Polanco. Not stiff or formal, not street slang, but cultured and natural. Return ONLY the Spanish translation, nothing else.\n\n"${en}"` }]
+      })
+    });
+    const data = await res.json();
+    console.log('Translate response:', JSON.stringify(data));
+    const t = data.content?.find(c => c.type === 'text')?.text?.trim() || '';
+    if (t) { document.getElementById('s-es').value = t; setStatus('s-status', '✓ Done', 'var(--green)'); }
+    else setStatus('s-status', 'Error: ' + (data.error?.message || 'no content'), 'var(--red)');
+  } catch(e) { setStatus('s-status', 'Error: ' + e.message, 'var(--red)'); }
+  btn.disabled = false;
+}
+
+async function toggleMastered(id, current) {
+  const item = cache.sentences.find(s => s.id === id);
+  if (!item) return;
+  item.mastered = !current; saveCache(); render();
+  try { await updatePage(id, { mastered: item.mastered }); } catch(e) { item.mastered = current; saveCache(); render(); }
+}
+
+async function deleteItem(id, section) {
+  if (!confirm('Delete this entry?')) return;
+  const arr = section === 'sentence' ? cache.sentences : section === 'word' ? cache.words : cache.culture;
+  const idx = arr.findIndex(x => x.id === id);
+  if (idx >= 0) { arr.splice(idx, 1); saveCache(); render(); }
+  try { await archivePage(id); } catch(e) {}
+}
+
+// DRILL
+function renderDrill() {
+  const active = cache.sentences.filter(s => !s.mastered);
+  if (drillQueue.length === 0) { drillQueue = [...active].sort(() => Math.random() - 0.5); drillIdx = 0; }
+  const current = drillQueue[drillIdx];
+  document.getElementById('main').innerHTML = `
+    <div class="page-header"><h1 class="page-title">Drill <em>Mode</em></h1><p class="page-sub">${active.length} sentences in rotation</p></div>
+    <div class="drill-wrap">
+      <div class="drill-top">
+        <div class="seg">
+          <button class="seg-opt ${drillDir === 'en-es' ? 'active' : ''}" onclick="setDir('en-es')">English → Spanish</button>
+          <button class="seg-opt ${drillDir === 'es-en' ? 'active' : ''}" onclick="setDir('es-en')">Spanish → English</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="reshuffleDrill()">Reshuffle</button>
+      </div>
+      ${active.length === 0 ? `<div class="empty">No sentences in rotation.</div>` :
+        !current ? `<div class="empty">All done! <a href="#" onclick="reshuffleDrill();return false">Start again</a></div>` : `
+      <div class="drill-prog">Card <b>${drillIdx + 1}</b> of <b>${drillQueue.length}</b></div>
+      <div class="drill-card">
+        <div class="drill-plabel">${drillDir === 'en-es' ? 'Say this in Spanish' : 'Say this in English'}</div>
+        <div class="drill-prompt ${drillDir === 'es-en' ? 'es' : ''}">${esc(drillDir === 'en-es' ? current.english : current.spanish)}</div>
+        <div class="drill-answer ${drillRevealed ? 'show' : ''}">${esc(drillDir === 'en-es' ? current.spanish : current.english)}
+          ${drillDir === 'en-es' ? `<div style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="speak('${esc(current.spanish)}')">🔊 Hear it</button></div>` : ''}
+        </div>
+      </div>
+      <div class="drill-btns">
+        ${!drillRevealed
+          ? `<button class="btn btn-ghost" onclick="revealDrill()">Show answer</button>`
+          : `<button class="btn btn-ghost" onclick="drillMastered('${current.id}')">✓ Mastered</button>
+             <button class="btn btn-gold" onclick="nextDrill()">Next →</button>`}
+      </div>`}
+    </div>`;
+}
+
+function setDir(d) { drillDir = d; drillRevealed = false; renderDrill(); }
+function revealDrill() { drillRevealed = true; renderDrill(); }
+function nextDrill() { drillIdx++; drillRevealed = false; renderDrill(); }
+function reshuffleDrill() { drillQueue = [...cache.sentences.filter(s => !s.mastered)].sort(() => Math.random() - 0.5); drillIdx = 0; drillRevealed = false; renderDrill(); }
+async function drillMastered(id) {
+  const s = cache.sentences.find(x => x.id === id);
+  if (s) { s.mastered = true; saveCache(); }
+  drillQueue = drillQueue.filter(x => x.id !== id);
+  drillIdx = Math.min(drillIdx, drillQueue.length - 1);
+  drillRevealed = false; renderDrill();
+  try { await updatePage(id, { mastered: true }); } catch(e) {}
+}
+
+// WORDS
+function renderWords() {
+  const words = cache.words;
+  document.getElementById('main').innerHTML = `
+    <div class="page-header"><h1 class="page-title">Words <em>&amp; Phrases</em></h1><p class="page-sub">Capture new words — then build them into sentences</p></div>
+    <div class="stats">
+      <div class="stat"><div class="stat-n">${words.length}</div><div class="stat-l">Captured</div></div>
+      <div class="stat"><div class="stat-n">${words.filter(w => w.used).length}</div><div class="stat-l">Used in sentence</div></div>
+      <div class="stat"><div class="stat-n">${words.filter(w => !w.used).length}</div><div class="stat-l">Waiting</div></div>
+    </div>
+    <div class="add-panel">
+      <h3>Add word or phrase</h3>
+      <div class="field-row three">
+        <div class="field"><label>Spanish</label><input id="w-es" placeholder="e.g. a gusto"></div>
+        <div class="field"><label>English</label><input id="w-en" placeholder="e.g. at ease, comfortable"></div>
+        <div class="field"><label>Notes (optional)</label><input id="w-note" placeholder="e.g. very Mexican"></div>
+      </div>
+      <div class="add-actions"><button class="btn btn-gold" id="save-w-btn" onclick="addWord()">Save</button><span id="w-status"></span></div>
+    </div>
+    ${words.length === 0 ? `<div class="empty">No words yet.</div>` : ''}
+    ${words.map(w => `
+      <div class="w-card ${w.used ? 'used' : ''}">
+        <div><div class="w-es">${esc(w.spanish)}</div><button class="icon-btn" style="margin-top:4px" onclick="speak('${esc(w.spanish)}')">🔊</button></div>
+        <div><div class="w-en">${esc(w.english)}</div>${w.notes ? `<div class="w-note">${esc(w.notes)}</div>` : ''}</div>
+        <div>${w.used ? `<span class="used-badge">✓ Used</span>` : ''}</div>
+        <div class="w-actions">
+          <button class="icon-btn ${w.used ? 'on' : ''}" onclick="toggleUsed('${w.id}',${w.used})">${w.used ? '✓' : '○'}</button>
+          <button class="icon-btn del" onclick="deleteItem('${w.id}','word')">✕</button>
+        </div>
+      </div>`).join('')}`;
+}
+
+async function addWord() {
+  const es = document.getElementById('w-es').value.trim();
+  const en = document.getElementById('w-en').value.trim();
+  const note = document.getElementById('w-note').value.trim();
+  if (!es || !en) return;
+  const btn = document.getElementById('save-w-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const page = await createPage({ english: en, spanish: es, notes: note, section: 'word', used: false });
+    cache.words.unshift(pageToItem(page)); saveCache(); render(); showToast('Saved!');
+  } catch(e) { setStatus('w-status', 'Error: ' + e.message, 'var(--red)'); }
+  btn.disabled = false; btn.textContent = 'Save';
+}
+
+async function toggleUsed(id, current) {
+  const item = cache.words.find(w => w.id === id);
+  if (!item) return;
+  item.used = !current; saveCache(); render();
+  try { await updatePage(id, { used: item.used }); } catch(e) { item.used = current; saveCache(); render(); }
+}
+
+// CULTURE
+function renderCulture() {
+  const items = cache.culture;
+  document.getElementById('main').innerHTML = `
+    <div class="page-header"><h1 class="page-title">Culture <em>&amp; Slang</em></h1><p class="page-sub">Mexico City expressions, context, history, and slang</p></div>
+    <div class="stats">
+      <div class="stat"><div class="stat-n">${items.filter(c => c.tag === 'slang').length}</div><div class="stat-l">Slang & expressions</div></div>
+      <div class="stat"><div class="stat-n">${items.filter(c => c.tag === 'history').length}</div><div class="stat-l">History & context</div></div>
+      <div class="stat"><div class="stat-n">${items.length}</div><div class="stat-l">Total</div></div>
+    </div>
+    <div class="add-panel">
+      <h3>Add entry</h3>
+      <div class="field-row two">
+        <div class="field"><label>Title</label><input id="c-title" placeholder="e.g. Órale"></div>
+        <div class="field"><label>Category</label><select id="c-tag"><option value="slang">Slang & expressions</option><option value="history">History & context</option></select></div>
+      </div>
+      <div class="field-row"><div class="field"><label>Notes / explanation</label><textarea id="c-body" rows="2" placeholder="What it means, when to use it..."></textarea></div></div>
+      <div class="add-actions"><button class="btn btn-gold" id="save-c-btn" onclick="addCulture()">Save</button><span id="c-status"></span></div>
+    </div>
+    ${items.length === 0 ? `<div class="empty">Nothing here yet.</div>` : ''}
+    ${items.map(c => `
+      <div class="c-card">
+        <div class="c-header">
+          <div><div class="c-title">${esc(c.english)}</div><span class="c-tag ${c.tag}">${c.tag === 'slang' ? 'Slang & expressions' : 'History & context'}</span></div>
+          <button class="icon-btn del" onclick="deleteItem('${c.id}','culture')">✕</button>
+        </div>
+        ${c.notes ? `<div class="c-body">${esc(c.notes)}</div>` : ''}
+      </div>`).join('')}`;
+}
+
+async function addCulture() {
+  const title = document.getElementById('c-title').value.trim();
+  const tag = document.getElementById('c-tag').value;
+  const body = document.getElementById('c-body').value.trim();
+  if (!title) return;
+  const btn = document.getElementById('save-c-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const page = await createPage({ english: title, notes: body, section: 'culture', tag });
+    cache.culture.unshift(pageToItem(page)); saveCache(); render(); showToast('Saved!');
+  } catch(e) { setStatus('c-status', 'Error: ' + e.message, 'var(--red)'); }
+  btn.disabled = false; btn.textContent = 'Save';
+}
+
+// SETTINGS
+function renderSettingsView() {
+  document.getElementById('main').innerHTML = `
+    <div class="page-header"><h1 class="page-title"><em>Settings</em></h1></div>
+    <div class="settings-wrap">
+      <div class="settings-section">
+        <h3>Notion connection</h3>
+        <p>Update your Notion API token or database ID here if needed.</p>
+        <div class="field" style="margin-bottom:10px"><label>Notion API Token</label><input type="password" id="set-token" value="${settings.token || ''}" placeholder="secret_..."></div>
+        <div class="field" style="margin-bottom:14px"><label>Database ID</label><input id="set-dbid" value="${settings.dbId || ''}" placeholder="32 character ID"></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-gold" onclick="saveAndSync()">Save & reconnect</button>
+          <span id="set-status"></span>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Auto-translate</h3>
+        <p>Your Anthropic API key enables auto-translation. Get yours at console.anthropic.com.</p>
+        <div class="field" style="margin-bottom:14px"><label>Anthropic API Key</label><input type="password" id="set-anthropic" value="${settings.anthropicKey || ''}" placeholder="sk-ant-..."></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-gold" onclick="saveAnthropicKey()">Save key</button>
+          <span id="set-anthropic-status"></span>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Voice playback (ElevenLabs)</h3>
+        <p>Add your ElevenLabs API key and voice ID for native-quality Spanish pronunciation.</p>
+        <div class="field" style="margin-bottom:10px"><label>ElevenLabs API Key</label><input type="password" id="set-eleven" value="${esc(settings.elevenKey || '')}" placeholder="your ElevenLabs key"></div>
+        <div class="field" style="margin-bottom:14px"><label>Voice ID</label><input id="set-voice" value="${esc(settings.voiceId || '')}" placeholder="paste voice ID here"></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-gold" onclick="saveElevenKey()">Save</button>
+          <span id="set-eleven-status"></span>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Manual sync</h3>
+        <p style="margin-bottom:12px">Last synced: ${cache.lastSync ? new Date(cache.lastSync).toLocaleString() : 'Never'}</p>
+        <button class="btn btn-ghost" onclick="manualSync()">↺ Sync now</button>
+      </div>
+    </div>`;
+}
+
+function saveAnthropicKey() {
+  const key = document.getElementById('set-anthropic').value.trim();
+  if (!key) { setStatus('set-anthropic-status', 'Enter a key', 'var(--red)'); return; }
+  settings.anthropicKey = key; saveSettings();
+  setStatus('set-anthropic-status', '✓ Saved', 'var(--green)');
+}
+
+function saveElevenKey() {
+  const key = document.getElementById('set-eleven').value.trim();
+  const voiceId = document.getElementById('set-voice').value.trim();
+  if (!key || !voiceId) { setStatus('set-eleven-status', 'Enter both fields', 'var(--red)'); return; }
+  settings.elevenKey = key; settings.voiceId = voiceId; saveSettings();
+  setStatus('set-eleven-status', '✓ Saved', 'var(--green)');
+}
+
+async function saveAndSync() {
+  const token = document.getElementById('set-token').value.trim();
+  const dbId = document.getElementById('set-dbid').value.trim();
+  if (!token || !dbId) { setStatus('set-status', 'Both fields required', 'var(--red)'); return; }
+  settings.token = token; settings.dbId = dbId; saveSettings();
+  setStatus('set-status', 'Connecting...', 'var(--accent)');
+  try { await syncFromNotion(); setStatus('set-status', '✓ Connected', 'var(--green)'); render(); }
+  catch(e) { setStatus('set-status', 'Error: ' + e.message, 'var(--red)'); }
+}
+
+async function manualSync() {
+  setSyncStatus('Syncing...');
+  try { await syncFromNotion(); render(); showToast('Synced!'); setSyncStatus(''); }
+  catch(e) { showToast('Sync error', 'error'); setSyncStatus(''); }
+}
+
+// DICTATION
+let recognition = null, dictating = false;
+function toggleDictation() {
+  const btn = document.getElementById('mic-btn');
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) { setStatus('s-status', 'Not supported in this browser', 'var(--red)'); return; }
+  if (dictating) { recognition && recognition.stop(); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = 'en-US'; recognition.continuous = false; recognition.interimResults = true;
+  recognition.onstart = () => { dictating = true; if (btn) { btn.textContent = '⏹ Stop'; btn.style.color = 'var(--red)'; btn.style.borderColor = 'var(--red)'; } setStatus('s-status', 'Listening...', 'var(--accent)'); };
+  recognition.onresult = (e) => { const t = Array.from(e.results).map(r => r[0].transcript).join(''); const f = document.getElementById('s-en'); if (f) f.value = t; };
+  recognition.onend = () => { dictating = false; if (btn) { btn.textContent = '🎙 Dictate'; btn.style.color = ''; btn.style.borderColor = ''; } setStatus('s-status', '', ''); };
+  recognition.onerror = () => { dictating = false; if (btn) { btn.textContent = '🎙 Dictate'; btn.style.color = ''; btn.style.borderColor = ''; } setStatus('s-status', 'Mic error', 'var(--red)'); };
+  recognition.start();
+}
+
+// SPEAK
+async function speak(text) {
+  if (settings.elevenKey && settings.voiceId) {
+    try {
+      const res = await fetch(PROXY + '/elevenlabs/v1/text-to-speech/' + settings.voiceId, {
+        method: 'POST',
+        headers: { 'xi-api-key': settings.elevenKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const audio = new Audio(URL.createObjectURL(blob));
+        audio.play();
+        return;
+      }
+    } catch(e) { console.log('ElevenLabs error, falling back to browser TTS', e); }
+  }
+  // Fallback to browser TTS
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'es-MX'; u.rate = 0.9;
+  const voices = speechSynthesis.getVoices();
+  const mx = voices.find(v => v.lang === 'es-MX') || voices.find(v => v.lang.startsWith('es'));
+  if (mx) u.voice = mx;
+  speechSynthesis.speak(u);
+}
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => {};
+
+// UTILS
+function todayKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function todayLabel() { return new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' }); }
+function fmtDay(key) { try { const [y,m,d] = key.split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); } catch(e) { return key; } }
+function setStatus(id, msg, color) { const el = document.getElementById(id); if (el) { el.textContent = msg; el.style.color = color; el.style.fontSize = '12px'; } }
+function esc(s='') { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+let toastTimer;
+function showToast(msg, type='success') {
+  let t = document.getElementById('toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;transition:opacity 0.3s;color:#fff'; document.body.appendChild(t); }
+  t.textContent = msg; t.style.background = type === 'error' ? 'var(--red)' : 'var(--green)'; t.style.opacity = '1';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.opacity = '0'; }, 2000);
+}
+
+init();
+</script>
+</body>
+</html>
