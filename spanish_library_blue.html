@@ -640,19 +640,19 @@ function toggleDictation() {
 async function speak(text) {
   if (settings.elevenKey && settings.voiceId) {
     try {
-      // Create and play audio immediately to satisfy Safari's gesture requirement
-      const audio = new Audio();
-      audio.play().catch(()=>{});
       const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + settings.voiceId, {
         method: 'POST',
         headers: { 'xi-api-key': settings.elevenKey, 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
       });
       if (res.ok) {
-        const blob = await res.blob();
-        audio.src = URL.createObjectURL(blob);
-        audio.load();
-        audio.play();
+        const arrayBuf = await res.arrayBuffer();
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
+        const source = audioCtx.createBufferSource();
+        source.buffer = audioBuf;
+        source.connect(audioCtx.destination);
+        source.start(0);
         return;
       }
     } catch(e) { console.log('ElevenLabs error, falling back to browser TTS', e); }
