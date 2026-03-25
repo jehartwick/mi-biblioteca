@@ -124,7 +124,7 @@ const SETTINGS_KEY = 'mibiblioteca_settings';
 const CACHE_KEY = 'mibiblioteca_cache_v2';
 let settings = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch(e) { return {}; } })();
 let cache = (() => { try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || {sentences:[],words:[],culture:[],lastSync:null}; } catch(e) { return {sentences:[],words:[],culture:[],lastSync:null}; } })();
-let view = 'sentences', dayFilter = null;
+let view = 'sentences', dayFilter = null, inputDir = 'en-es';
 let drillIdx = 0, drillDir = 'en-es', drillRevealed = false, drillQueue = [];
 
 function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
@@ -316,13 +316,22 @@ function renderSentences() {
       <div class="stat"><div class="stat-n">${mastered}</div><div class="stat-l">Mastered</div></div>
     </div>
     <div class="add-panel">
-      <h3>Add new sentence</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <h3 style="margin-bottom:0">Add new sentence</h3>
+        <div class="seg">
+          <button class="seg-opt ${inputDir==='en-es'?'active':''}" onclick="setInputDir('en-es')">EN → ES</button>
+          <button class="seg-opt ${inputDir==='es-en'?'active':''}" onclick="setInputDir('es-en')">ES → EN</button>
+        </div>
+      </div>
       <div class="field-row two">
         <div class="field">
-          <label>Your sentence in English</label>
-          <textarea id="s-en" rows="2" placeholder="e.g. I can't decide where to live"></textarea>
+          <label>${inputDir==='en-es'?'Your sentence in English':'Your sentence in Spanish'}</label>
+          <textarea id="s-left" rows="2" placeholder="${inputDir==='en-es'?'e.g. Today is an awesome day.':'e.g. Hoy es un día increíble.'}"></textarea>
         </div>
-        <div class="field"><label>Mexico City Spanish</label><textarea id="s-es" rows="2" placeholder="Paste or auto-translate →"></textarea></div>
+        <div class="field">
+          <label>${inputDir==='en-es'?'Mexico City Spanish':'English translation'}</label>
+          <textarea id="s-right" rows="2" placeholder="Paste or auto-translate →"></textarea>
+        </div>
       </div>
       <div class="add-actions">
         <button class="btn btn-gold" id="save-s-btn" onclick="addSentence()">Save sentence</button>
@@ -351,9 +360,13 @@ function sentenceCard(s) {
   </div>`;
 }
 
+function setInputDir(dir) { inputDir = dir; renderSentences(); }
+
 async function addSentence() {
-  const en = document.getElementById('s-en').value.trim();
-  const es = document.getElementById('s-es').value.trim();
+  const left = document.getElementById('s-left').value.trim();
+  const right = document.getElementById('s-right').value.trim();
+  const en = inputDir === 'en-es' ? left : right;
+  const es = inputDir === 'en-es' ? right : left;
   if (!en || !es) { setStatus('s-status', 'Enter both fields', 'var(--red)'); return; }
   const btn = document.getElementById('save-s-btn');
   btn.disabled = true; btn.textContent = 'Saving...';
@@ -366,23 +379,22 @@ async function addSentence() {
 }
 
 async function autoTranslate() {
-  const en = document.getElementById('s-en').value.trim();
-  if (!en) { setStatus('s-status', 'Enter English first', 'var(--red)'); return; }
+  const left = document.getElementById('s-left').value.trim();
+  if (!left) { setStatus('s-status', 'Enter a sentence first', 'var(--red)'); return; }
   const btn = document.getElementById('translate-btn');
   btn.disabled = true; setStatus('s-status', 'Translating...', 'var(--accent)');
+  const prompt = inputDir === 'en-es'
+    ? `Translate this to natural Mexico City Spanish as spoken by an educated, upper-middle-class Chilango — articulate and fluid, the kind of Spanish you'd hear in a dinner conversation in Condesa or Polanco. Not stiff or formal, not street slang, but cultured and natural. Return ONLY the Spanish translation, nothing else.\n\n"${left}"`
+    : `Translate this Spanish sentence to natural English. Return ONLY the English translation, nothing else.\n\n"${left}"`;
   try {
     const res = await fetch(PROXY + '/anthropic/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': settings.anthropicKey || '', 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514', max_tokens: 200,
-        messages: [{ role: 'user', content: `Translate this to natural Mexico City Spanish as spoken by an educated, upper-middle-class Chilango — articulate and fluid, the kind of Spanish you'd hear in a dinner conversation in Condesa or Polanco. Not stiff or formal, not street slang, but cultured and natural. Return ONLY the Spanish translation, nothing else.\n\n"${en}"` }]
-      })
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 200, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await res.json();
-    console.log('Translate response:', JSON.stringify(data));
     const t = data.content?.find(c => c.type === 'text')?.text?.trim() || '';
-    if (t) { document.getElementById('s-es').value = t; setStatus('s-status', '✓ Done', 'var(--green)'); }
+    if (t) { document.getElementById('s-right').value = t; setStatus('s-status', '✓ Done', 'var(--green)'); }
     else setStatus('s-status', 'Error: ' + (data.error?.message || 'no content'), 'var(--red)');
   } catch(e) { setStatus('s-status', 'Error: ' + e.message, 'var(--red)'); }
   btn.disabled = false;
@@ -630,7 +642,7 @@ function toggleDictation() {
   recognition = new SR();
   recognition.lang = 'en-US'; recognition.continuous = false; recognition.interimResults = true;
   recognition.onstart = () => { dictating = true; if (btn) { btn.textContent = '⏹ Stop'; btn.style.color = 'var(--red)'; btn.style.borderColor = 'var(--red)'; } setStatus('s-status', 'Listening...', 'var(--accent)'); };
-  recognition.onresult = (e) => { const t = Array.from(e.results).map(r => r[0].transcript).join(''); const f = document.getElementById('s-en'); if (f) f.value = t; };
+  recognition.onresult = (e) => { const t = Array.from(e.results).map(r => r[0].transcript).join(''); const f = document.getElementById('s-left'); if (f) f.value = t; };
   recognition.onend = () => { dictating = false; if (btn) { btn.textContent = '🎙 Dictate'; btn.style.color = ''; btn.style.borderColor = ''; } setStatus('s-status', '', ''); };
   recognition.onerror = () => { dictating = false; if (btn) { btn.textContent = '🎙 Dictate'; btn.style.color = ''; btn.style.borderColor = ''; } setStatus('s-status', 'Mic error', 'var(--red)'); };
   recognition.start();
@@ -646,9 +658,13 @@ async function speak(text) {
         body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
       });
       if (res.ok) {
-        const blob = await res.blob();
-        const audio = new Audio(URL.createObjectURL(blob));
-        audio.play();
+        const arrayBuf = await res.arrayBuffer();
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
+        const source = audioCtx.createBufferSource();
+        source.buffer = audioBuf;
+        source.connect(audioCtx.destination);
+        source.start(0);
         return;
       }
     } catch(e) { console.log('ElevenLabs error, falling back to browser TTS', e); }
