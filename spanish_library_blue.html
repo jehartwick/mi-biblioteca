@@ -124,8 +124,18 @@ const SETTINGS_KEY = 'mibiblioteca_settings';
 const CACHE_KEY = 'mibiblioteca_cache_v2';
 let settings = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch(e) { return {}; } })();
 let cache = (() => { try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || {sentences:[],words:[],culture:[],lastSync:null}; } catch(e) { return {sentences:[],words:[],culture:[],lastSync:null}; } })();
-let view = 'sentences', dayFilter = null, inputDir = 'en-es';
+let view = 'sentences', dayFilter = null;
 let drillIdx = 0, drillDir = 'en-es', drillRevealed = false, drillQueue = [];
+let inputDir = 'en-es'; // sentence input panel direction
+
+// PAQUETES STATE
+const PAQUETES_CACHE_KEY = 'mibiblioteca_paquetes';
+let paquetesCache = (() => { try { return JSON.parse(localStorage.getItem(PAQUETES_CACHE_KEY)) || {sessions:[]}; } catch(e) { return {sessions:[]}; } })();
+let paquetesView = 'preview'; // 'preview' or 'package'
+let paquetesSessionFilter = null; // date key of selected saved session
+let todayParams = null; // current day's generated parameters
+let todayPackage = null; // current day's generated package content
+function savePaquetesCache() { localStorage.setItem(PAQUETES_CACHE_KEY, JSON.stringify(paquetesCache)); }
 
 function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
 function saveCache() { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); }
@@ -253,7 +263,10 @@ function renderApp() {
       <aside class="sidebar">
         <div class="logo"><em>Mi</em> Biblioteca</div>
         <div style="padding-left:8px;min-height:18px" id="sync-status"></div>
-        <div class="nav-section">Vocabulary</div>
+        <div class="nav-section">Practice</div>
+        <button class="nav-btn" onclick="nav('paquetes')" id="nb-paquetes"><span class="nav-icon">🦋</span> Paquetes</button>
+        <div id="paquetes-session-nav"></div>
+        <div class="nav-section" style="margin-top:10px">Vocabulary</div>
         <button class="nav-btn" onclick="nav('words')" id="nb-words"><span class="nav-icon">✏️</span> Words & Phrases</button>
         <div class="nav-section" style="margin-top:10px">Mexico City</div>
         <button class="nav-btn" onclick="nav('culture')" id="nb-culture"><span class="nav-icon">🌮</span> Culture & Slang</button>
@@ -284,6 +297,7 @@ function render() {
   else if (view === 'words') renderWords();
   else if (view === 'culture') renderCulture();
   else if (view === 'settings') renderSettingsView();
+  else if (view === 'paquetes') renderPaquetes();
 }
 
 function renderSidebar() {
@@ -295,6 +309,16 @@ function renderSidebar() {
     `<button class="day-btn ${dayFilter === k && view === 'sentences' ? 'active' : ''}" onclick="nav('sentences','${k}')">
       <span>${fmtDay(k)}</span><span class="day-pill">${v.n}</span>
     </button>`).join('');
+
+  // Paquetes session nav
+  const pEl = document.getElementById('paquetes-session-nav');
+  if (pEl) {
+    const sessions = [...paquetesCache.sessions].sort((a,b) => b.date.localeCompare(a.date)).slice(0,10);
+    pEl.innerHTML = sessions.map(s =>
+      `<button class="day-btn ${paquetesSessionFilter === s.date && view === 'paquetes' ? 'active' : ''}" onclick="navPaquetesSession('${s.date}')">
+        <span>${fmtDay(s.date)} — ${esc(s.verb)}</span><span class="day-pill">✓</span>
+      </button>`).join('');
+  }
 }
 
 // SENTENCES
@@ -316,23 +340,22 @@ function renderSentences() {
       <div class="stat"><div class="stat-n">${mastered}</div><div class="stat-l">Mastered</div></div>
     </div>
     <div class="add-panel">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <h3 style="margin-bottom:0">Add new sentence</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <h3 style="margin-bottom:0;">Add new sentence</h3>
         <div class="seg">
-          <button class="seg-opt ${inputDir==='en-es'?'active':''}" onclick="setInputDir('en-es')">EN → ES</button>
-          <button class="seg-opt ${inputDir==='es-en'?'active':''}" onclick="setInputDir('es-en')">ES → EN</button>
+          <button class="seg-opt ${inputDir === 'en-es' ? 'active' : ''}" onclick="setInputDir('en-es')">EN → ES</button>
+          <button class="seg-opt ${inputDir === 'es-en' ? 'active' : ''}" onclick="setInputDir('es-en')">ES → EN</button>
         </div>
       </div>
-      <div class="field-row two">
-        <div class="field">
-          <label>${inputDir==='en-es'?'Your sentence in English':'Your sentence in Spanish'}</label>
-          <textarea id="s-left" rows="2" placeholder="${inputDir==='en-es'?'e.g. Today is an awesome day.':'e.g. Hoy es un día increíble.'}"></textarea>
-        </div>
-        <div class="field">
-          <label>${inputDir==='en-es'?'Mexico City Spanish':'English translation'}</label>
-          <textarea id="s-right" rows="2" placeholder="Paste or auto-translate →"></textarea>
-        </div>
-      </div>
+      ${inputDir === 'en-es' ? `
+        <div class="field-row two">
+          <div class="field"><label>Your sentence in English</label><textarea id="s-en" rows="2" placeholder="e.g. Today is an awesome day."></textarea></div>
+          <div class="field"><label>Mexico City Spanish</label><textarea id="s-es" rows="2" placeholder="Paste or auto-translate →"></textarea></div>
+        </div>` : `
+        <div class="field-row two">
+          <div class="field"><label>Mexico City Spanish</label><textarea id="s-es" rows="2" placeholder="e.g. Hoy es un día increíble."></textarea></div>
+          <div class="field"><label>Your sentence in English</label><textarea id="s-en" rows="2" placeholder="Auto-translate will fill this →"></textarea></div>
+        </div>`}
       <div class="add-actions">
         <button class="btn btn-gold" id="save-s-btn" onclick="addSentence()">Save sentence</button>
         <button class="btn btn-ghost" id="translate-btn" onclick="autoTranslate()">✨ Auto-translate</button>
@@ -360,13 +383,25 @@ function sentenceCard(s) {
   </div>`;
 }
 
-function setInputDir(dir) { inputDir = dir; renderSentences(); }
+function setInputDir(dir) {
+  inputDir = dir;
+  const enField = document.getElementById('s-en');
+  const esField = document.getElementById('s-es');
+  const enLabel = document.querySelector('label[for-field="s-en"]');
+  if (dir === 'en-es') {
+    if (enField) { enField.placeholder = 'e.g. Today is an awesome day.'; }
+    if (esField) { esField.placeholder = 'Paste or auto-translate →'; }
+  } else {
+    if (enField) { enField.placeholder = 'Auto-translate will fill this →'; }
+    if (esField) { esField.placeholder = 'e.g. Hoy es un día increíble.'; }
+  }
+  // Re-render just the panel header to update active state on buttons
+  renderSentences();
+}
 
 async function addSentence() {
-  const left = document.getElementById('s-left').value.trim();
-  const right = document.getElementById('s-right').value.trim();
-  const en = inputDir === 'en-es' ? left : right;
-  const es = inputDir === 'en-es' ? right : left;
+  const en = document.getElementById('s-en').value.trim();
+  const es = document.getElementById('s-es').value.trim();
   if (!en || !es) { setStatus('s-status', 'Enter both fields', 'var(--red)'); return; }
   const btn = document.getElementById('save-s-btn');
   btn.disabled = true; btn.textContent = 'Saving...';
@@ -379,13 +414,16 @@ async function addSentence() {
 }
 
 async function autoTranslate() {
-  const left = document.getElementById('s-left').value.trim();
-  if (!left) { setStatus('s-status', 'Enter a sentence first', 'var(--red)'); return; }
+  const isEnToEs = inputDir === 'en-es';
+  const sourceField = document.getElementById(isEnToEs ? 's-en' : 's-es');
+  const targetField = document.getElementById(isEnToEs ? 's-es' : 's-en');
+  const sourceText = sourceField ? sourceField.value.trim() : '';
+  if (!sourceText) { setStatus('s-status', isEnToEs ? 'Enter English first' : 'Enter Spanish first', 'var(--red)'); return; }
   const btn = document.getElementById('translate-btn');
   btn.disabled = true; setStatus('s-status', 'Translating...', 'var(--accent)');
-  const prompt = inputDir === 'en-es'
-    ? `Translate this to natural Mexico City Spanish as spoken by an educated, upper-middle-class Chilango — articulate and fluid, the kind of Spanish you'd hear in a dinner conversation in Condesa or Polanco. Not stiff or formal, not street slang, but cultured and natural. Return ONLY the Spanish translation, nothing else.\n\n"${left}"`
-    : `Translate this Spanish sentence to natural English. Return ONLY the English translation, nothing else.\n\n"${left}"`;
+  const prompt = isEnToEs
+    ? `Translate this to natural Mexico City Spanish as spoken by an educated, upper-middle-class Chilango — articulate and fluid, the kind of Spanish you'd hear in a dinner conversation in Condesa or Polanco. Not stiff or formal, not street slang, but cultured and natural. Return ONLY the Spanish translation, nothing else.\n\n"${sourceText}"`
+    : `Translate this Mexico City Spanish to natural English. Return ONLY the English translation, nothing else.\n\n"${sourceText}"`;
   try {
     const res = await fetch(PROXY + '/anthropic/v1/messages', {
       method: 'POST',
@@ -394,7 +432,7 @@ async function autoTranslate() {
     });
     const data = await res.json();
     const t = data.content?.find(c => c.type === 'text')?.text?.trim() || '';
-    if (t) { document.getElementById('s-right').value = t; setStatus('s-status', '✓ Done', 'var(--green)'); }
+    if (t) { if (targetField) targetField.value = t; setStatus('s-status', '✓ Done', 'var(--green)'); }
     else setStatus('s-status', 'Error: ' + (data.error?.message || 'no content'), 'var(--red)');
   } catch(e) { setStatus('s-status', 'Error: ' + e.message, 'var(--red)'); }
   btn.disabled = false;
@@ -416,12 +454,185 @@ async function deleteItem(id, section) {
 }
 
 // DRILL
+let drillSetup = true;
+let drillSelectedDays = [];
+let drillSource = 'sentences'; // 'sentences' or 'paquetes'
+let drillSelectedSessions = []; // paquetes session dates
+let drillLayerFilter = 'all'; // 'all' | 'Base conjugations' | 'Object pronouns' | 'Grammar concept' | 'Mexican layer'
+
 function renderDrill() {
-  const active = cache.sentences.filter(s => !s.mastered);
-  if (drillQueue.length === 0) { drillQueue = [...active].sort(() => Math.random() - 0.5); drillIdx = 0; }
-  const current = drillQueue[drillIdx];
+  if (drillSetup) { renderDrillSetup(); return; }
+  renderDrillCards();
+}
+
+function renderDrillSetup() {
+  const hasSessions = paquetesCache.sessions.length > 0;
+
+  // Sentences days
+  const days = {};
+  cache.sentences.filter(s => !s.mastered).forEach(s => {
+    if (!days[s.day_key]) days[s.day_key] = { lbl: s.day_label, n: 0 };
+    days[s.day_key].n++;
+  });
+  const sortedDays = Object.entries(days).sort((a, b) => b[0].localeCompare(a[0]));
+
+  // Paquetes sessions
+  const sortedSessions = [...paquetesCache.sessions].sort((a, b) => b.date.localeCompare(a.date));
+
+  const poolCount = getDrillPool().length;
+
   document.getElementById('main').innerHTML = `
-    <div class="page-header"><h1 class="page-title">Drill <em>Mode</em></h1><p class="page-sub">${active.length} sentences in rotation</p></div>
+    <div class="page-header">
+      <h1 class="page-title">Drill <em>Mode</em></h1>
+      <p class="page-sub">Choose your source, select days, then start.</p>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;font-weight:500;">Source</div>
+      <div class="seg" style="width:fit-content;">
+        <button class="seg-opt ${drillSource === 'sentences' ? 'active' : ''}" onclick="setDrillSource('sentences')">📖 Sentences</button>
+        <button class="seg-opt ${drillSource === 'paquetes' ? 'active' : ''}" onclick="setDrillSource('paquetes')">🦋 Paquetes</button>
+      </div>
+    </div>
+
+    ${drillSource === 'sentences' ? `
+    <div class="add-panel">
+      <h3>Select days</h3>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:14px;">Leave all unchecked to drill everything in rotation.</p>
+      ${sortedDays.length === 0 ? `<div style="color:var(--text3);font-size:13px;">No sentences in rotation yet.</div>` : ''}
+      ${sortedDays.map(([k, v]) => `
+        <label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+          <input type="checkbox" value="${k}" ${drillSelectedDays.includes(k) ? 'checked' : ''}
+            onchange="toggleDrillDay('${k}')"
+            style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
+          <span style="font-size:13px;color:var(--text2);flex:1;">${fmtDay(k)}</span>
+          <span style="font-size:11px;color:var(--text3);">${v.n} sentence${v.n !== 1 ? 's' : ''}</span>
+        </label>`).join('')}
+    </div>` : `
+    <div class="add-panel">
+      <h3>Select sessions</h3>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:14px;">Leave all unchecked to drill all saved sessions.</p>
+      ${sortedSessions.length === 0 ? `<div style="color:var(--text3);font-size:13px;">No saved Paquetes sessions yet.</div>` : ''}
+      ${sortedSessions.map(s => `
+        <label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+          <input type="checkbox" value="${s.date}" ${drillSelectedSessions.includes(s.date) ? 'checked' : ''}
+            onchange="toggleDrillSession('${s.date}')"
+            style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
+          <span style="font-size:13px;color:var(--text2);flex:1;">${fmtDay(s.date)} — <em>${esc(s.verb)}</em></span>
+          <span style="font-size:11px;color:var(--text3);">${esc(s.grammar_concept)}</span>
+        </label>`).join('')}
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;font-weight:500;">Layer filter</div>
+      <div class="seg" style="width:fit-content;flex-wrap:wrap;">
+        ${['all','Base conjugations','Object pronouns','Grammar concept','Mexican layer'].map(l => `
+          <button class="seg-opt ${drillLayerFilter === l ? 'active' : ''}" onclick="setDrillLayer('${l}')">${l === 'all' ? 'All layers' : l}</button>`).join('')}
+      </div>
+    </div>`}
+
+    <div style="margin-bottom:16px;">
+      <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;font-weight:500;">Direction</div>
+      <div class="seg" style="width:fit-content;">
+        <button class="seg-opt ${drillDir === 'en-es' ? 'active' : ''}" onclick="setDir('en-es')">English → Spanish</button>
+        <button class="seg-opt ${drillDir === 'es-en' ? 'active' : ''}" onclick="setDir('es-en')">Spanish → English</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-gold" onclick="startDrill()" ${poolCount === 0 ? 'disabled' : ''}>Start drilling</button>
+      ${(drillSelectedDays.length > 0 || drillSelectedSessions.length > 0) ? `
+        <button class="btn btn-ghost btn-sm" onclick="drillSelectedDays=[];drillSelectedSessions=[];renderDrillSetup()">Clear selection</button>` : ''}
+      <span style="font-size:12px;color:var(--text3);">${poolCount} sentence${poolCount !== 1 ? 's' : ''} in pool</span>
+    </div>`;
+}
+
+function setDrillSource(src) {
+  drillSource = src;
+  drillSelectedDays = [];
+  drillSelectedSessions = [];
+  drillLayerFilter = 'all';
+  renderDrillSetup();
+}
+
+function toggleDrillDay(dayKey) {
+  const idx = drillSelectedDays.indexOf(dayKey);
+  if (idx >= 0) drillSelectedDays.splice(idx, 1);
+  else drillSelectedDays.push(dayKey);
+  renderDrillSetup();
+}
+
+function toggleDrillSession(dateKey) {
+  const idx = drillSelectedSessions.indexOf(dateKey);
+  if (idx >= 0) drillSelectedSessions.splice(idx, 1);
+  else drillSelectedSessions.push(dateKey);
+  renderDrillSetup();
+}
+
+function setDrillLayer(layer) {
+  drillLayerFilter = layer;
+  renderDrillSetup();
+}
+
+function getDrillPool() {
+  if (drillSource === 'sentences') {
+    const active = cache.sentences.filter(s => !s.mastered);
+    if (drillSelectedDays.length === 0) return active;
+    return active.filter(s => drillSelectedDays.includes(s.day_key));
+  }
+  // Paquetes source — extract sentences from saved sessions
+  let sessions = paquetesCache.sessions;
+  if (drillSelectedSessions.length > 0) {
+    sessions = sessions.filter(s => drillSelectedSessions.includes(s.date));
+  }
+  const sentences = [];
+  for (const session of sessions) {
+    const tenses = parseSavedContent(session.package_content || '');
+    for (const tense of tenses) {
+      for (const layer of tense.layers) {
+        if (drillLayerFilter !== 'all' && layer.label !== drillLayerFilter) continue;
+        for (const s of layer.sentences) {
+          sentences.push({
+            id: `paq-${session.date}-${tense.technical}-${layer.label}-${sentences.length}`,
+            english: s.en,
+            spanish: s.es,
+            source: `${esc(session.verb)} · ${tense.technical} · ${layer.label}`,
+            mastered: false
+          });
+        }
+      }
+    }
+  }
+  return sentences;
+}
+
+function startDrill() {
+  const pool = getDrillPool();
+  if (pool.length === 0) return;
+  drillQueue = [...pool].sort(() => Math.random() - 0.5);
+  drillIdx = 0;
+  drillRevealed = false;
+  drillSetup = false;
+  renderDrillCards();
+}
+
+function renderDrillCards() {
+  const current = drillQueue[drillIdx];
+  const isPaquetes = drillSource === 'paquetes';
+  const labelParts = [];
+  if (drillSource === 'paquetes') {
+    labelParts.push('🦋 Paquetes');
+    if (drillLayerFilter !== 'all') labelParts.push(drillLayerFilter);
+  } else {
+    labelParts.push(drillSelectedDays.length > 0 ? `${drillSelectedDays.length} day${drillSelectedDays.length !== 1 ? 's' : ''}` : 'All days');
+  }
+  const label = labelParts.join(' · ');
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-header">
+      <h1 class="page-title">Drill <em>Mode</em></h1>
+      <p class="page-sub"><a href="#" onclick="drillSetup=true;renderDrill();return false;">← Change setup</a> · ${label}</p>
+    </div>
     <div class="drill-wrap">
       <div class="drill-top">
         <div class="seg">
@@ -430,35 +641,36 @@ function renderDrill() {
         </div>
         <button class="btn btn-ghost btn-sm" onclick="reshuffleDrill()">Reshuffle</button>
       </div>
-      ${active.length === 0 ? `<div class="empty">No sentences in rotation.</div>` :
-        !current ? `<div class="empty">All done! <a href="#" onclick="reshuffleDrill();return false">Start again</a></div>` : `
+      ${!current ? `<div class="empty">All done! <a href="#" onclick="reshuffleDrill();return false">Start again</a> · <a href="#" onclick="drillSetup=true;renderDrill();return false;">Change setup</a></div>` : `
       <div class="drill-prog">Card <b>${drillIdx + 1}</b> of <b>${drillQueue.length}</b></div>
       <div class="drill-card">
+        ${isPaquetes && current.source ? `<div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;">${current.source}</div>` : ''}
         <div class="drill-plabel">${drillDir === 'en-es' ? 'Say this in Spanish' : 'Say this in English'}</div>
         <div class="drill-prompt ${drillDir === 'es-en' ? 'es' : ''}">${esc(drillDir === 'en-es' ? current.english : current.spanish)}</div>
-        <div class="drill-answer ${drillRevealed ? 'show' : ''}">${esc(drillDir === 'en-es' ? current.spanish : current.english)}
-          ${drillDir === 'en-es' ? `<div style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="speak('${esc(current.spanish)}')">🔊 Hear it</button></div>` : ''}
-        </div>
+        <div class="drill-answer ${drillRevealed ? 'show' : ''}">${esc(drillDir === 'en-es' ? current.spanish : current.english)}</div>
       </div>
       <div class="drill-btns">
         ${!drillRevealed
           ? `<button class="btn btn-ghost" onclick="revealDrill()">Show answer</button>`
-          : `<button class="btn btn-ghost" onclick="drillMastered('${current.id}')">✓ Mastered</button>
+          : `${!isPaquetes ? `<button class="btn btn-ghost" onclick="drillMastered('${current.id}')">✓ Mastered</button>` : ''}
              <button class="btn btn-gold" onclick="nextDrill()">Next →</button>`}
       </div>`}
     </div>`;
 }
 
 function setDir(d) { drillDir = d; drillRevealed = false; renderDrill(); }
-function revealDrill() { drillRevealed = true; renderDrill(); }
-function nextDrill() { drillIdx++; drillRevealed = false; renderDrill(); }
-function reshuffleDrill() { drillQueue = [...cache.sentences.filter(s => !s.mastered)].sort(() => Math.random() - 0.5); drillIdx = 0; drillRevealed = false; renderDrill(); }
+function revealDrill() { drillRevealed = true; renderDrillCards(); }
+function nextDrill() { drillIdx++; drillRevealed = false; renderDrillCards(); }
+function reshuffleDrill() {
+  drillQueue = [...getDrillPool()].sort(() => Math.random() - 0.5);
+  drillIdx = 0; drillRevealed = false; renderDrillCards();
+}
 async function drillMastered(id) {
   const s = cache.sentences.find(x => x.id === id);
   if (s) { s.mastered = true; saveCache(); }
   drillQueue = drillQueue.filter(x => x.id !== id);
   drillIdx = Math.min(drillIdx, drillQueue.length - 1);
-  drillRevealed = false; renderDrill();
+  drillRevealed = false; renderDrillCards();
   try { await updatePage(id, { mastered: true }); } catch(e) {}
 }
 
@@ -568,7 +780,8 @@ function renderSettingsView() {
         <h3>Notion connection</h3>
         <p>Update your Notion API token or database ID here if needed.</p>
         <div class="field" style="margin-bottom:10px"><label>Notion API Token</label><input type="password" id="set-token" value="${settings.token || ''}" placeholder="secret_..."></div>
-        <div class="field" style="margin-bottom:14px"><label>Database ID</label><input id="set-dbid" value="${settings.dbId || ''}" placeholder="32 character ID"></div>
+        <div class="field" style="margin-bottom:10px"><label>Sentence Library Database ID</label><input id="set-dbid" value="${settings.dbId || ''}" placeholder="32 character ID"></div>
+        <div class="field" style="margin-bottom:14px"><label>Paquetes Database ID</label><input id="set-paquetes-dbid" value="${settings.paquetesDbId || ''}" placeholder="32 character ID"></div>
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn btn-gold" onclick="saveAndSync()">Save & reconnect</button>
           <span id="set-status"></span>
@@ -619,8 +832,11 @@ function saveElevenKey() {
 async function saveAndSync() {
   const token = document.getElementById('set-token').value.trim();
   const dbId = document.getElementById('set-dbid').value.trim();
+  const paquetesDbId = document.getElementById('set-paquetes-dbid').value.trim();
   if (!token || !dbId) { setStatus('set-status', 'Both fields required', 'var(--red)'); return; }
-  settings.token = token; settings.dbId = dbId; saveSettings();
+  settings.token = token; settings.dbId = dbId;
+  if (paquetesDbId) settings.paquetesDbId = paquetesDbId;
+  saveSettings();
   setStatus('set-status', 'Connecting...', 'var(--accent)');
   try { await syncFromNotion(); setStatus('set-status', '✓ Connected', 'var(--green)'); render(); }
   catch(e) { setStatus('set-status', 'Error: ' + e.message, 'var(--red)'); }
@@ -642,7 +858,7 @@ function toggleDictation() {
   recognition = new SR();
   recognition.lang = 'en-US'; recognition.continuous = false; recognition.interimResults = true;
   recognition.onstart = () => { dictating = true; if (btn) { btn.textContent = '⏹ Stop'; btn.style.color = 'var(--red)'; btn.style.borderColor = 'var(--red)'; } setStatus('s-status', 'Listening...', 'var(--accent)'); };
-  recognition.onresult = (e) => { const t = Array.from(e.results).map(r => r[0].transcript).join(''); const f = document.getElementById('s-left'); if (f) f.value = t; };
+  recognition.onresult = (e) => { const t = Array.from(e.results).map(r => r[0].transcript).join(''); const f = document.getElementById('s-en'); if (f) f.value = t; };
   recognition.onend = () => { dictating = false; if (btn) { btn.textContent = '🎙 Dictate'; btn.style.color = ''; btn.style.borderColor = ''; } setStatus('s-status', '', ''); };
   recognition.onerror = () => { dictating = false; if (btn) { btn.textContent = '🎙 Dictate'; btn.style.color = ''; btn.style.borderColor = ''; } setStatus('s-status', 'Mic error', 'var(--red)'); };
   recognition.start();
@@ -658,13 +874,9 @@ async function speak(text) {
         body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
       });
       if (res.ok) {
-        const arrayBuf = await res.arrayBuffer();
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
-        const source = audioCtx.createBufferSource();
-        source.buffer = audioBuf;
-        source.connect(audioCtx.destination);
-        source.start(0);
+        const blob = await res.blob();
+        const audio = new Audio(URL.createObjectURL(blob));
+        audio.play();
         return;
       }
     } catch(e) { console.log('ElevenLabs error, falling back to browser TTS', e); }
@@ -693,6 +905,541 @@ function showToast(msg, type='success') {
   if (!t) { t = document.createElement('div'); t.id = 'toast'; t.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;transition:opacity 0.3s;color:#fff'; document.body.appendChild(t); }
   t.textContent = msg; t.style.background = type === 'error' ? 'var(--red)' : 'var(--green)'; t.style.opacity = '1';
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.opacity = '0'; }, 2000);
+}
+
+// PAQUETES NAV HELPER
+function navPaquetesSession(dateKey) {
+  paquetesSessionFilter = dateKey;
+  paquetesView = 'package';
+  view = 'paquetes';
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const nb = document.getElementById('nb-paquetes');
+  if (nb) nb.classList.add('active');
+  render();
+}
+
+// ── PAQUETES PARAMETER POOLS ──────────────────────────────────────────────────
+
+const VERB_POOL = [
+  {es:'tener',en:'to have'},{es:'ser',en:'to be (permanent)'},{es:'estar',en:'to be (temporary)'},
+  {es:'ir',en:'to go'},{es:'hacer',en:'to do / make'},{es:'poder',en:'to be able to'},
+  {es:'querer',en:'to want'},{es:'saber',en:'to know'},{es:'venir',en:'to come'},
+  {es:'decir',en:'to say / tell'},{es:'ver',en:'to see'},{es:'dar',en:'to give'},
+  {es:'poner',en:'to put / place'},{es:'salir',en:'to leave / go out'},{es:'llevar',en:'to carry / take'},
+  {es:'pasar',en:'to pass / happen'},{es:'vivir',en:'to live'},{es:'hablar',en:'to speak'},
+  {es:'comer',en:'to eat'},{es:'trabajar',en:'to work'},{es:'pensar',en:'to think'},
+  {es:'encontrar',en:'to find / meet'},{es:'sentir',en:'to feel'},{es:'seguir',en:'to follow / continue'},
+  {es:'creer',en:'to believe'},{es:'dejar',en:'to leave / let'},{es:'traer',en:'to bring'},
+  {es:'conocer',en:'to know (a person/place)'},{es:'perder',en:'to lose'},{es:'esperar',en:'to wait / hope'}
+];
+
+const REFLEXIVE_VERB_POOL = [
+  {es:'gustarse',en:'to like (lit. to please oneself)'},{es:'llevarse',en:'to get along / to take away'},
+  {es:'quedarse',en:'to stay / remain'},{es:'sentirse',en:'to feel (emotions)'},
+  {es:'llamarse',en:'to be called'},{es:'acordarse',en:'to remember'},
+  {es:'olvidarse',en:'to forget'},{es:'ponerse',en:'to become / put on'},
+  {es:'irse',en:'to leave / go away'},{es:'hacerse',en:'to become'}
+];
+
+const VOCAB_POOL = [
+  ['tiempo','dinero','trabajo'],['casa','familia','amigo'],['coche','llaves','bolsa'],
+  ['comida','restaurante','mesa'],['ciudad','colonia','calle'],['viaje','hotel','maleta'],
+  ['clase','tarea','libro'],['teléfono','mensaje','llamada'],['mercado','precio','cuenta'],
+  ['película','música','concierto'],['médico','cita','salud'],['fiesta','invitación','regalo'],
+  ['reunión','proyecto','equipo'],['café','desayuno','tarde'],['perro','parque','vecino']
+];
+
+const GRAMMAR_POOL = [
+  {label:'Por vs Para',desc:'Uses of por and para'},
+  {label:'Lo que',desc:'What / that which — connector'},
+  {label:'Aunque / Sino',desc:'Even though / but rather — connectors'},
+  {label:'Direct object pronouns',desc:'lo, la, los, las'},
+  {label:'Indirect object pronouns',desc:'le, les'},
+  {label:'Combined pronouns',desc:'me, te, se, nos + direct object'},
+  {label:'Haber +',desc:'Past participle — compound tenses'},
+  {label:'Reflexive verbs',desc:'Verbs with se, me, te, nos'},
+  {label:'A + infinitive',desc:'ir a, volver a, comenzar a'},
+  {label:'Prepositions',desc:'en, con, sin, desde, hasta, sobre, entre'},
+  {label:'Porque / Como',desc:'Because / since — cause connectors'},
+  {label:'Cuando / Donde',desc:'When / where — relative clauses'},
+  {label:'Que + subjuntivo',desc:'Quiero que, espero que, necesito que'}
+];
+
+const PRONOUN_POOL = [
+  'lo / la / le',
+  'me / te / se / nos',
+  'lo / la + me / te / se',
+  'le / les',
+  'nos / os',
+  'se + lo / la / los / las'
+];
+
+const MEXICAN_POOL = [
+  {label:'¡Qué bárbaro! / ¡Qué barbaridad!',desc:'Wow / How outrageous'},
+  {label:'O sea / O sea que',desc:'I mean / So basically'},
+  {label:'Ya / Ya me dio',desc:'Already / I\'m over it'},
+  {label:'Ahorita / Ahorita mismo',desc:'Right now (flexible) / right this instant'},
+  {label:'Órale / Ándale',desc:'Okay / Come on / Alright'},
+  {label:'Híjole',desc:'Wow / Oh man (surprise/dismay)'},
+  {label:'Mande',desc:'Pardon? / Yes? (polite)'},
+  {label:'A huevo / Claro que sí',desc:'Hell yes / Of course'},
+  {label:'Sin embargo / Eso sí',desc:'However / That\'s true'},
+  {label:'Me cae bien / Me cae mal',desc:'I like them / I don\'t like them'},
+  {label:'Qué onda',desc:'What\'s up / What\'s going on'},
+  {label:'Ni modo',desc:'Oh well / No way around it'},
+  {label:'A poco',desc:'Really? / No way'},
+  {label:'Simón / Nel',desc:'Yes / No (slang)'}
+];
+
+// ── PARAMETER ROTATION ────────────────────────────────────────────────────────
+
+function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function pickExcluding(arr, excludeLabel) {
+  const filtered = arr.filter(item => (item.es || item.label || item) !== excludeLabel);
+  return pickRandom(filtered.length ? filtered : arr);
+}
+
+function generateParams(swapField = null) {
+  const existing = todayParams || {};
+  const isReflexiveDay = Math.random() < 0.25; // 25% chance of reflexive verb
+  const verbPool = isReflexiveDay ? REFLEXIVE_VERB_POOL : VERB_POOL;
+
+  return {
+    verb: swapField === 'verb' || !existing.verb
+      ? pickExcluding(verbPool, existing.verb?.es)
+      : existing.verb,
+    vocabulary: swapField === 'vocabulary' || !existing.vocabulary
+      ? pickRandom(VOCAB_POOL)
+      : existing.vocabulary,
+    grammar: swapField === 'grammar' || !existing.grammar
+      ? pickExcluding(GRAMMAR_POOL, existing.grammar?.label)
+      : existing.grammar,
+    pronoun: swapField === 'pronoun' || !existing.pronoun
+      ? pickExcluding(PRONOUN_POOL, existing.pronoun)
+      : existing.pronoun,
+    mexican: swapField === 'mexican' || !existing.mexican
+      ? pickExcluding(MEXICAN_POOL, existing.mexican?.label)
+      : existing.mexican,
+    date: todayKey()
+  };
+}
+
+function initTodayParams() {
+  // If we already have params for today, restore them
+  const stored = localStorage.getItem('paquetes_today_params');
+  if (stored) {
+    try {
+      const p = JSON.parse(stored);
+      if (p.date === todayKey()) { todayParams = p; return; }
+    } catch(e) {}
+  }
+  // Otherwise generate fresh
+  todayParams = generateParams();
+  saveTodayParams();
+}
+
+function saveTodayParams() {
+  localStorage.setItem('paquetes_today_params', JSON.stringify(todayParams));
+}
+
+function swapParam(field) {
+  todayParams = generateParams(field);
+  saveTodayParams();
+  renderPaquetes();
+}
+
+function regenerateAll() {
+  todayParams = null; // clear so generateParams starts fresh
+  todayParams = generateParams();
+  saveTodayParams();
+  todayPackage = null;
+  renderPaquetes();
+}
+
+// ── PAQUETES RENDER ───────────────────────────────────────────────────────────
+
+function renderPaquetes() {
+  if (!todayParams) initTodayParams();
+
+  // If viewing a saved session, show that instead
+  if (paquetesSessionFilter && paquetesView === 'package') {
+    const session = paquetesCache.sessions.find(s => s.date === paquetesSessionFilter);
+    if (session) { renderSavedSession(session); return; }
+  }
+
+  const p = todayParams;
+  const btnStyle = `font-family:'DM Sans',sans-serif;font-size:12px;font-weight:400;padding:6px 14px;border-radius:8px;cursor:pointer;background:transparent;color:var(--text3);border:1px solid var(--border2);`;
+  const primaryBtn = `font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:10px 22px;border-radius:10px;border:none;cursor:pointer;background:var(--accent2);color:#0d2a4a;`;
+  const tabActive = `font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:10px 22px;border-radius:10px;border:none;cursor:pointer;background:var(--accent2);color:#0d2a4a;opacity:1;`;
+  const tabInactive = `font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:10px 22px;border-radius:10px;border:none;cursor:pointer;background:var(--accent2);color:#0d2a4a;opacity:0.45;`;
+
+  const isPreview = paquetesView === 'preview';
+
+  document.getElementById('main').innerHTML = `
+    <div style="display:flex;gap:10px;margin-bottom:24px;">
+      <button style="${isPreview ? tabActive : tabInactive}" onclick="setPaquetesView('preview')">Today's package</button>
+      <button style="${!isPreview ? tabActive : tabInactive}" onclick="setPaquetesView('package')"${!todayPackage ? ' disabled title="Generate the package first"' : ''}>Full package</button>
+    </div>
+
+    ${isPreview ? renderPreviewCard(p, btnStyle, primaryBtn) : renderFullPackage(p)}
+  `;
+}
+
+function setPaquetesView(v) {
+  paquetesView = v;
+  paquetesSessionFilter = null;
+  renderPaquetes();
+}
+
+function renderPreviewCard(p, btnStyle, primaryBtn) {
+  return `
+    <div class="page-header">
+      <h1 class="page-title"><em>Paquete</em> del día</h1>
+      <p class="page-sub">Review your parameters, swap anything out, then generate.</p>
+    </div>
+
+    <div class="add-panel">
+      <h3>Today's parameters</h3>
+
+      <div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:10px;">
+        <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);width:130px;flex-shrink:0;">Verb</div>
+        <div style="font-size:14px;color:var(--text2);flex:1;">${esc(p.verb.es)} <span style="font-size:12px;color:var(--text3);">${esc(p.verb.en)}</span></div>
+        <button style="${btnStyle}" onclick="swapParam('verb')">↺ swap</button>
+      </div>
+
+      <div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:10px;">
+        <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);width:130px;flex-shrink:0;">Vocabulary</div>
+        <div style="font-size:14px;color:var(--text2);flex:1;">${p.vocabulary.map(esc).join(', ')}</div>
+        <button style="${btnStyle}" onclick="swapParam('vocabulary')">↺ swap</button>
+      </div>
+
+      <div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:10px;">
+        <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);width:130px;flex-shrink:0;">Grammar concept</div>
+        <div style="font-size:14px;color:var(--text2);flex:1;">${esc(p.grammar.label)} <span style="font-size:12px;color:var(--text3);">${esc(p.grammar.desc)}</span></div>
+        <button style="${btnStyle}" onclick="swapParam('grammar')">↺ swap</button>
+      </div>
+
+      <div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:10px;">
+        <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);width:130px;flex-shrink:0;">Pronoun focus</div>
+        <div style="font-size:14px;color:var(--text2);flex:1;">${esc(p.pronoun)}</div>
+        <button style="${btnStyle}" onclick="swapParam('pronoun')">↺ swap</button>
+      </div>
+
+      <div style="display:flex;align-items:center;padding:10px 0;gap:10px;">
+        <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text3);width:130px;flex-shrink:0;">Mexican layer</div>
+        <div style="font-size:14px;color:var(--text2);flex:1;">${esc(p.mexican.label)} <span style="font-size:12px;color:var(--text3);">${esc(p.mexican.desc)}</span></div>
+        <button style="${btnStyle}" onclick="swapParam('mexican')">↺ swap</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:4px;">
+      <button style="${primaryBtn}" onclick="generatePackage()" id="gen-btn">Generate package</button>
+      <button style="font-family:'DM Sans',sans-serif;font-size:13px;font-weight:400;padding:10px 16px;border-radius:10px;cursor:pointer;background:transparent;color:var(--text3);border:1px solid var(--border2);" onclick="regenerateAll()">↺ Regenerate all</button>
+    </div>
+    <div id="gen-status" style="margin-top:10px;font-size:12px;min-height:18px;"></div>
+  `;
+}
+
+function renderFullPackage(p) {
+  if (!todayPackage) {
+    return `<div class="empty">No package generated yet — go to Today's package and hit Generate.</div>`;
+  }
+  const saveBarBtn = `font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;padding:7px 16px;border-radius:10px;border:none;cursor:pointer;background:var(--accent2);color:#0d2a4a;`;
+  return `
+    <div class="page-header">
+      <h1 class="page-title"><em>${esc(p.verb.es)}</em></h1>
+      <p class="page-sub">${todayLabel()} · ${esc(p.grammar.label)} · ${esc(p.pronoun)}</p>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <span style="font-size:13px;color:var(--text2);">${esc(p.verb.es)} · ${esc(p.grammar.label)} · ${fmtDay(todayKey())}</span>
+      <button style="${saveBarBtn}" onclick="saveSession()">Save session</button>
+    </div>
+    ${todayPackage.map((tense, ti) => renderTenseCard(tense, ti, ti === 0)).join('')}
+    <div id="save-session-status" style="font-size:12px;min-height:18px;margin-top:8px;text-align:right;"></div>
+  `;
+}
+
+function renderTenseCard(tense, tenseIdx, expanded) {
+  const chevron = expanded ? '▼' : '▶';
+  const bodyDisplay = expanded ? 'block' : 'none';
+  return `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;" onclick="toggleTenseCard('${tenseIdx}')">
+        <div style="display:flex;align-items:baseline;gap:10px;">
+          <span style="font-family:'Playfair Display',serif;font-size:16px;color:var(--text2);font-weight:400;">${esc(tense.technical)}</span>
+          <span style="font-size:12px;color:var(--text3);">${esc(tense.human)}</span>
+        </div>
+        <span id="chevron-${tenseIdx}" style="font-size:10px;color:var(--text3);">${chevron}</span>
+      </div>
+      <div id="tense-body-${tenseIdx}" style="border-top:1px solid var(--border);padding:16px 18px;display:${bodyDisplay};">
+        ${tense.layers.map((layer, li) => renderLayer(layer, tenseIdx, li)).join('')}
+      </div>
+    </div>`;
+}
+
+function renderLayer(layer, tenseIdx, layerIdx) {
+  const divider = layerIdx > 0 ? `<div style="height:1px;background:var(--border);margin:10px 0;"></div>` : '';
+  const sentences = layer.sentences.map((s, si) => {
+    const enId = `en-${tenseIdx}-${layerIdx}-${si}`;
+    const enBtnId = `en-btn-${tenseIdx}-${layerIdx}-${si}`;
+    const esEscaped = esc(s.es).replace(/'/g, '&#39;');
+    const enEscaped = esc(s.en).replace(/'/g, '&#39;');
+    const saveStyle = `font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;color:#0d2a4a;background:var(--accent2);border:none;border-radius:6px;padding:3px 9px;cursor:pointer;white-space:nowrap;`;
+    const enBtnStyle = `font-family:'DM Sans',sans-serif;font-size:11px;font-weight:400;color:var(--text3);background:transparent;border:1px solid var(--border2);border-radius:6px;padding:3px 8px;cursor:pointer;`;
+    return `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:4px 0;">
+        <div style="flex:1;">
+          <div style="font-size:14px;color:var(--accent2);line-height:1.6;">${esc(s.es)}</div>
+          <div id="${enId}" style="font-size:13px;color:var(--text);margin-top:3px;display:none;">${esc(s.en)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;margin-top:3px;">
+          <button id="${enBtnId}" style="${enBtnStyle}" onclick="toggleEnglish('${enId}','${enBtnId}')">EN</button>
+          <button style="${saveStyle}" onclick="savePackageSentence('${esEscaped}','${enEscaped}',this)">+ save</button>
+        </div>
+      </div>`;
+  }).join('');
+  return `
+    ${divider}
+    <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;font-weight:500;">${esc(layer.label)}</div>
+    ${sentences}`;
+}
+
+function toggleTenseCard(idx) {
+  const body = document.getElementById(`tense-body-${idx}`);
+  const chevron = document.getElementById(`chevron-${idx}`);
+  if (!body || !chevron) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  chevron.textContent = open ? '▶' : '▼';
+}
+
+function toggleEnglish(enId, btnId) {
+  const el = document.getElementById(enId);
+  const btn = document.getElementById(btnId);
+  if (!el || !btn) return;
+  const showing = el.style.display !== 'none';
+  el.style.display = showing ? 'none' : 'block';
+  btn.style.color = showing ? 'var(--text3)' : 'var(--accent2)';
+  btn.style.borderColor = showing ? 'var(--border2)' : 'rgba(170,221,245,0.4)';
+}
+
+async function savePackageSentence(es, en, btn) {
+  if (!es || !en) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const page = await createPage({ english: en, spanish: es, section: 'sentence', mastered: false, day_key: todayKey(), day_label: todayLabel() });
+    cache.sentences.unshift(pageToItem(page));
+    saveCache();
+    btn.textContent = '✓'; btn.style.background = 'var(--green)'; btn.style.color = '#fff';
+    showToast('Saved to library!');
+  } catch(e) {
+    btn.disabled = false; btn.textContent = orig;
+    showToast('Error saving', 'error');
+  }
+}
+
+async function saveSession() {
+  if (!todayPackage || !settings.paquetesDbId) {
+    setStatus('save-session-status', settings.paquetesDbId ? 'No package to save' : '⚠ Add Paquetes DB ID in Settings', 'var(--red)');
+    return;
+  }
+  const p = todayParams;
+  const content = todayPackage.map(t =>
+    `${t.technical} | ${t.human}\n` +
+    t.layers.map(l => `  [${l.label}]\n` + l.sentences.map(s => `  ${s.es} | ${s.en}`).join('\n')).join('\n')
+  ).join('\n\n');
+  setStatus('save-session-status', 'Saving...', 'var(--accent)');
+  try {
+    const props = {
+      verb: p.verb.es, infinitive_english: p.verb.en,
+      vocabulary: p.vocabulary.join(', '), grammar_concept: p.grammar.label,
+      pronoun_focus: p.pronoun, mexican_expression: p.mexican.label,
+      package_content: content, date: todayKey(), status: 'Done', notes: ''
+    };
+    await notionReq('/pages', 'POST', {
+      parent: { database_id: settings.paquetesDbId },
+      properties: makePaquetesProps(props)
+    });
+    const existing = paquetesCache.sessions.findIndex(s => s.date === todayKey());
+    if (existing >= 0) paquetesCache.sessions[existing] = props;
+    else paquetesCache.sessions.unshift(props);
+    savePaquetesCache();
+    renderSidebar();
+    setStatus('save-session-status', '✓ Session saved', 'var(--green)');
+    showToast('Session saved!');
+  } catch(e) {
+    setStatus('save-session-status', 'Error: ' + e.message, 'var(--red)');
+  }
+}
+
+function makePaquetesProps(obj) {
+  const p = {};
+  if (obj.verb !== undefined) p['verb'] = { title: [{ text: { content: String(obj.verb) } }] };
+  if (obj.infinitive_english !== undefined) p['infinitive_english'] = { rich_text: [{ text: { content: String(obj.infinitive_english) } }] };
+  if (obj.vocabulary !== undefined) p['vocabulary'] = { rich_text: [{ text: { content: String(obj.vocabulary) } }] };
+  if (obj.grammar_concept !== undefined) p['grammar_concept'] = { rich_text: [{ text: { content: String(obj.grammar_concept) } }] };
+  if (obj.pronoun_focus !== undefined) p['pronoun_focus'] = { rich_text: [{ text: { content: String(obj.pronoun_focus) } }] };
+  if (obj.mexican_expression !== undefined) p['mexican_expression'] = { rich_text: [{ text: { content: String(obj.mexican_expression) } }] };
+  if (obj.package_content !== undefined) p['package_content'] = { rich_text: [{ text: { content: String(obj.package_content).slice(0, 2000) } }] };
+  if (obj.date !== undefined) p['date'] = { rich_text: [{ text: { content: String(obj.date) } }] };
+  if (obj.status !== undefined) p['status'] = { select: { name: obj.status } };
+  if (obj.notes !== undefined) p['notes'] = { rich_text: [{ text: { content: String(obj.notes) } }] };
+  return p;
+}
+
+function renderSavedSession(session) {
+  const tenses = parseSavedContent(session.package_content || '');
+  const hasTenses = tenses.length > 0;
+  document.getElementById('main').innerHTML = `
+    <div class="page-header">
+      <h1 class="page-title"><em>${esc(session.verb)}</em></h1>
+      <p class="page-sub"><a href="#" onclick="paquetesSessionFilter=null;paquetesView='preview';renderPaquetes();return false;">← Today's package</a> · ${fmtDay(session.date)}</p>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;margin-bottom:16px;display:flex;gap:24px;flex-wrap:wrap;">
+      <span style="font-size:12px;color:var(--text3);">Grammar: <span style="color:var(--text2);">${esc(session.grammar_concept)}</span></span>
+      <span style="font-size:12px;color:var(--text3);">Pronouns: <span style="color:var(--text2);">${esc(session.pronoun_focus)}</span></span>
+      <span style="font-size:12px;color:var(--text3);">Mexican: <span style="color:var(--text2);">${esc(session.mexican_expression)}</span></span>
+      <span style="font-size:12px;color:var(--text3);">Vocab: <span style="color:var(--text2);">${esc(session.vocabulary)}</span></span>
+    </div>
+    ${hasTenses
+      ? tenses.map((tense, ti) => renderTenseCard(tense, 's' + ti, ti === 0)).join('')
+      : `<div style="font-size:13px;color:var(--text2);white-space:pre-wrap;line-height:1.8;">${esc(session.package_content || '')}</div>`}
+  `;
+}
+
+function parseSavedContent(text) {
+  if (!text) return [];
+  const tenses = [];
+  const blocks = text.split(/\n\n+/);
+  for (const block of blocks) {
+    const lines = block.trim().split('\n');
+    if (!lines[0] || !lines[0].includes('|')) continue;
+    const [technical, human] = lines[0].split('|').map(s => s.trim());
+    const layers = [];
+    let currentLayer = null;
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      const layerMatch = line.match(/^\s+\[(.+)\]/);
+      if (layerMatch) {
+        if (currentLayer) layers.push(currentLayer);
+        currentLayer = { label: layerMatch[1], sentences: [] };
+      } else if (currentLayer && line.includes(' | ')) {
+        const [es, en] = line.trim().split(' | ');
+        if (es && en) currentLayer.sentences.push({ es, en });
+      }
+    }
+    if (currentLayer) layers.push(currentLayer);
+    if (layers.length) tenses.push({ technical, human, layers });
+  }
+  return tenses;
+}
+
+// ── PACKAGE GENERATION ────────────────────────────────────────────────────────
+
+async function generatePackage() {
+  if (!settings.anthropicKey) {
+    setStatus('gen-status', '⚠ Add your Anthropic API key in Settings first', 'var(--red)');
+    return;
+  }
+  const btn = document.getElementById('gen-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating...'; }
+
+  const p = todayParams;
+  const tenseList = [
+    {technical:'Presente', human:'Now'},
+    {technical:'Pretérito', human:'Done'},
+    {technical:'Imperfecto', human:'Used to / Was happening'},
+    {technical:'Futuro', human:'Will'},
+    {technical:'Condicional', human:'Would'},
+    {technical:'Subjuntivo', human:'Wishes / Hopes (+-) / Emotions'}
+  ];
+
+  const results = [];
+  for (let i = 0; i < tenseList.length; i++) {
+    const tense = tenseList[i];
+    setStatus('gen-status', `Generating ${tense.technical} (${i+1}/6)...`, 'var(--accent)');
+    try {
+      const prompt = buildTensePrompt(p, tense);
+      const res = await fetch(PROXY + '/anthropic/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+      });
+      const raw = await res.text();
+      console.log('Paquetes response (' + tense.technical + '):', raw.slice(0, 300));
+      let data;
+      try { data = JSON.parse(raw); } catch(pe) { throw new Error('Proxy error: ' + raw.slice(0, 120)); }
+      const text = data.content?.find(c => c.type === 'text')?.text?.trim() || '';
+      if (!text) throw new Error(data.error?.message || JSON.stringify(data).slice(0, 120));
+      const layers = parseTenseResponse(text);
+      results.push({ technical: tense.technical, human: tense.human, layers });
+    } catch(e) {
+      setStatus('gen-status', 'Error on ' + tense.technical + ': ' + e.message, 'var(--red)');
+      if (btn) { btn.disabled = false; btn.textContent = 'Generate package'; }
+      return;
+    }
+  }
+
+  todayPackage = results;
+  paquetesView = 'package';
+  setStatus('gen-status', '', '');
+  renderPaquetes();
+}
+
+function buildTensePrompt(p, tense) {
+  return `You are a Mexico City Spanish tutor. Generate ONE tense block for a daily practice package.
+
+LEARNER: Intermediate English speaker in Mérida, Mexico. Target: educated Mexico City Spanish (Condesa/Polanco register). Natural, not textbook stiff, not street slang.
+
+PARAMETERS:
+- Verb: ${p.verb.es} (${p.verb.en})
+- Vocabulary to weave in: ${p.vocabulary.join(', ')}
+- Grammar concept: ${p.grammar.label} — ${p.grammar.desc}
+- Pronoun focus: ${p.pronoun}
+- Mexican expression: ${p.mexican.label} (${p.mexican.desc})
+
+TENSE: ${tense.technical} (${tense.human})
+
+Generate exactly FOUR layers for this tense only:
+
+LAYER: Base conjugations
+5 natural sentences, one per pronoun: Yo, Tú, Él/Ella, Nosotros, Ellos/Ellas. Weave in the vocabulary. Full natural sentences.
+
+LAYER: Object pronouns
+2 sentences using the pronoun focus (${p.pronoun}). Natural context.
+
+LAYER: Grammar concept
+2 sentences applying ${p.grammar.label}.
+
+LAYER: Mexican layer
+2 sentences using ${p.mexican.label} naturally.
+
+FORMAT — each sentence on its own line with English translation after " | ":
+Sentence in Spanish. | English translation.
+
+Start directly with LAYER: — no preamble.`;
+}
+
+function parseTenseResponse(text) {
+  const layers = [];
+  let currentLayer = null;
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith('LAYER:')) {
+      if (currentLayer) layers.push(currentLayer);
+      currentLayer = { label: trimmed.replace('LAYER:', '').trim(), sentences: [] };
+    } else if (currentLayer && trimmed.includes(' | ')) {
+      const parts = trimmed.split(' | ');
+      const es = parts[0].trim();
+      const en = parts.slice(1).join(' | ').trim();
+      if (es && en) currentLayer.sentences.push({ es, en });
+    }
+  }
+  if (currentLayer) layers.push(currentLayer);
+  return layers;
 }
 
 init();
