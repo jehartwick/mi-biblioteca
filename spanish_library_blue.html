@@ -211,6 +211,25 @@ async function syncFromNotion() {
   saveCache();
 }
 
+async function syncPaquetesFromNotion() {
+  if (!settings.paquetesDbId) return;
+  const data = await notionReq('/databases/' + settings.paquetesDbId + '/query', 'POST', { page_size: 100 });
+  const pages = data.results || [];
+  paquetesCache.sessions = pages.map(page => ({
+    date: getProp(page, 'date', 'rich_text'),
+    verb: getProp(page, 'verb', 'title'),
+    infinitive_english: getProp(page, 'infinitive_english', 'rich_text'),
+    vocabulary: getProp(page, 'vocabulary', 'rich_text'),
+    grammar_concept: getProp(page, 'grammar_concept', 'rich_text'),
+    pronoun_focus: getProp(page, 'pronoun_focus', 'rich_text'),
+    mexican_expression: getProp(page, 'mexican_expression', 'rich_text'),
+    package_content: getProp(page, 'package_content', 'rich_text'),
+    status: getProp(page, 'status', 'select'),
+    notes: getProp(page, 'notes', 'rich_text'),
+  })).filter(s => s.date && s.verb); // skip any malformed rows
+  savePaquetesCache();
+}
+
 // INIT
 function init() {
   if (!isConfigured()) renderSetup();
@@ -219,7 +238,11 @@ function init() {
 
 async function loadData() {
   setSyncStatus('Syncing...');
-  try { await syncFromNotion(); setSyncStatus(''); render(); }
+  try {
+    await syncFromNotion();
+    await syncPaquetesFromNotion();
+    setSyncStatus(''); render();
+  }
   catch(e) { setSyncStatus('Sync error'); }
 }
 
@@ -844,7 +867,7 @@ async function saveAndSync() {
 
 async function manualSync() {
   setSyncStatus('Syncing...');
-  try { await syncFromNotion(); render(); showToast('Synced!'); setSyncStatus(''); }
+  try { await syncFromNotion(); await syncPaquetesFromNotion(); render(); showToast('Synced!'); setSyncStatus(''); }
   catch(e) { showToast('Sync error', 'error'); setSyncStatus(''); }
 }
 
