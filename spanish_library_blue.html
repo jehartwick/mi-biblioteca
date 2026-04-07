@@ -1380,11 +1380,13 @@ async function generatePackage() {
   ];
 
   const results = [];
+  let coreSentence = null; // established on first tense, passed to all subsequent
+
   for (let i = 0; i < tenseList.length; i++) {
     const tense = tenseList[i];
     setStatus('gen-status', `Generating ${tense.technical} (${i+1}/6)...`, 'var(--accent)');
     try {
-      const prompt = buildTensePrompt(p, tense);
+      const prompt = buildTensePrompt(p, tense, coreSentence);
       const res = await fetch(PROXY + '/anthropic/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01' },
@@ -1398,6 +1400,13 @@ async function generatePackage() {
       if (!text) throw new Error(data.error?.message || JSON.stringify(data).slice(0, 120));
       const layers = parseTenseResponse(text);
       results.push({ technical: tense.technical, human: tense.human, layers });
+      // Extract the core sentence from the first Yo sentence of Presente
+      if (i === 0 && !coreSentence) {
+        const baseLayer = layers.find(l => l.label === 'Base conjugations');
+        if (baseLayer && baseLayer.sentences.length > 0) {
+          coreSentence = baseLayer.sentences[0].en; // use English as the stable reference
+        }
+      }
     } catch(e) {
       setStatus('gen-status', 'Error on ' + tense.technical + ': ' + e.message, 'var(--red)');
       if (btn) { btn.disabled = false; btn.textContent = 'Generate package'; }
@@ -1411,33 +1420,41 @@ async function generatePackage() {
   renderPaquetes();
 }
 
-function buildTensePrompt(p, tense) {
+function buildTensePrompt(p, tense, coreSentence) {
+  const isFirst = !coreSentence;
+  const coreNote = isFirst
+    ? `First, establish a CORE SENTENCE in the Yo form — a natural, complete sentence using the verb "${p.verb.es}" and weaving in the vocabulary (${p.vocabulary.join(', ')}). This core idea will be the anchor for all four layers.`
+    : `The CORE SENTENCE IDEA (established in Presente) is: "${coreSentence}"
+Adapt this same idea into the ${tense.technical} tense. The meaning and subject matter stay the same — only the tense and layer transformations change.`;
+
   return `You are a Mexico City Spanish tutor. Generate ONE tense block for a daily practice package.
 
 LEARNER: Intermediate English speaker in Mérida, Mexico. Target: educated Mexico City Spanish (Condesa/Polanco register). Natural, not textbook stiff, not street slang.
 
 PARAMETERS:
 - Verb: ${p.verb.es} (${p.verb.en})
-- Vocabulary to weave in: ${p.vocabulary.join(', ')}
+- Vocabulary: ${p.vocabulary.join(', ')}
 - Grammar concept: ${p.grammar.label} — ${p.grammar.desc}
 - Pronoun focus: ${p.pronoun}
 - Mexican expression: ${p.mexican.label} (${p.mexican.desc})
 
 TENSE: ${tense.technical} (${tense.human})
 
-Generate exactly FOUR layers for this tense only:
+${coreNote}
+
+Generate exactly FOUR layers. Each layer transforms the SAME core sentence idea — do not introduce new subject matter:
 
 LAYER: Base conjugations
-5 natural sentences, one per pronoun: Yo, Tú, Él/Ella, Nosotros, Ellos/Ellas. Weave in the vocabulary. Full natural sentences.
+The core sentence idea in ${tense.technical}, one per pronoun: Yo, Tú, Él/Ella, Nosotros, Ellos/Ellas. Same idea, same vocabulary, conjugated for each person.
 
 LAYER: Object pronouns
-2 sentences using the pronoun focus (${p.pronoun}). Natural context.
+2 sentences — take the core idea and restructure it to use the pronoun focus (${p.pronoun}) naturally. Same core meaning.
 
 LAYER: Grammar concept
-2 sentences applying ${p.grammar.label}.
+2 sentences — apply ${p.grammar.label} to the core idea. Same underlying meaning, now shaped by the grammar concept.
 
 LAYER: Mexican layer
-2 sentences using ${p.mexican.label} naturally.
+2 sentences — express the core idea using ${p.mexican.label}. Natural, conversational Mexican Spanish. Same idea, Mexican flavor.
 
 FORMAT — each sentence on its own line with English translation after " | ":
 Sentence in Spanish. | English translation.
